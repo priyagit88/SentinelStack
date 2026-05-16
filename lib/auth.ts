@@ -67,6 +67,9 @@ const baseAuthOptions = {
     }
   },
   user: {
+    deleteUser: {
+      enabled: true
+    },
     additionalFields: {
       isFlagged: {
         type: "boolean",
@@ -165,10 +168,51 @@ const baseAuthOptions = {
               location
             }
           };
+        },
+        after: async (session) => {
+          await recordSecurityEvent({
+            userId: String(session.userId),
+            type: "LOGIN_SUCCESS",
+            severity: "LOW",
+            details: `Successful authentication from ${session.ipAddress}.`,
+            ip: session.ipAddress,
+            metadata: {
+              device: userAgentToDevice(session.userAgent ?? undefined),
+              userAgent: session.userAgent
+            }
+          });
+          return { data: session };
+        },
+        delete: {
+          after: async (session) => {
+            await recordSecurityEvent({
+              userId: String(session.userId),
+              type: "SESSION_REVOKED",
+              severity: "LOW",
+              details: `Session revoked for ${session.ipAddress}.`,
+              ip: session.ipAddress ?? "0.0.0.0"
+            });
+          }
         }
       }
     },
     user: {
+      create: {
+        after: async (user) => {
+          await recordSecurityEvent({
+            userId: String(user.id),
+            type: "REGISTER_SUCCESS",
+            severity: "LOW",
+            details: `New account created: ${user.email}.`,
+            ip: "0.0.0.0", // IP might not be available here, but we can try to extract it if needed
+            metadata: {
+              email: user.email,
+              name: user.name
+            }
+          });
+          return { data: user };
+        }
+      },
       delete: {
         after: async (user) => {
           await connectMongoose();

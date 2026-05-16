@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { APIError } from "better-auth/api";
 import { auth } from "@/lib/auth";
+import { recordSecurityEvent, getClientIp } from "@/lib/security";
 
 export const runtime = "nodejs";
 
@@ -22,6 +23,14 @@ export async function POST(request: NextRequest) {
       asResponse: true
     });
   } catch (error) {
+    const ip = getClientIp(request.headers);
+    await recordSecurityEvent({
+      type: "LOGIN_FAILURE",
+      severity: "MEDIUM",
+      details: `Failed login attempt for email: ${body.email}`,
+      ip,
+      metadata: { email: body.email }
+    });
     const message = error instanceof APIError ? error.message : "Unable to sign in.";
     return NextResponse.json({ error: message }, { status: 401 });
   }
