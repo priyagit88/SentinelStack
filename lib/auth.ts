@@ -82,6 +82,12 @@ const baseAuthOptions = {
         required: false,
         defaultValue: 0,
         input: false
+      },
+      isBlocked: {
+        type: "boolean",
+        required: false,
+        defaultValue: false,
+        input: false
       }
     }
   },
@@ -98,6 +104,19 @@ const baseAuthOptions = {
     }
   },
   databaseHooks: {
+    signIn: {
+      before: async (ctx) => {
+        const body = ctx.body as { email?: string };
+        if (!body.email) return;
+        
+        await connectMongoose();
+        const user = await User.findOne({ email: body.email }).select("isBlocked").lean<{ isBlocked?: boolean } | null>();
+        
+        if (user?.isBlocked) {
+          throw new Error("Your account has been blocked by an administrator for security violations.");
+        }
+      }
+    },
     session: {
       create: {
         before: async (session, ctx) => {
@@ -179,7 +198,8 @@ const baseAuthOptions = {
             metadata: {
               device: userAgentToDevice(session.userAgent ?? undefined),
               userAgent: session.userAgent
-            }
+            },
+            runAi: true
           });
         },
       },
@@ -190,7 +210,8 @@ const baseAuthOptions = {
             type: "SESSION_REVOKED",
             severity: "LOW",
             details: `Session revoked for ${session.ipAddress}.`,
-            ip: session.ipAddress ?? "0.0.0.0"
+            ip: session.ipAddress ?? "0.0.0.0",
+            runAi: true
           });
         }
       }
@@ -207,7 +228,8 @@ const baseAuthOptions = {
             metadata: {
               email: user.email,
               name: user.name
-            }
+            },
+            runAi: true
           });
         }
       },

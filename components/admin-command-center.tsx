@@ -13,7 +13,14 @@ import {
   Fingerprint,
   Wifi,
   WifiOff,
-  Zap
+  Zap,
+  Filter,
+  Clock,
+  Shield,
+  LayoutGrid,
+  Ban,
+  Loader2,
+  Sparkles
 } from "lucide-react";
 
 const Globe = dynamic(() => import("react-globe.gl"), { ssr: false });
@@ -24,6 +31,7 @@ type AdminSession = {
   id: string;
   email: string;
   isFlagged: boolean;
+  isBlocked: boolean;
   riskScore: number;
   ipAddress?: string;
   location?: { lat?: number; lon?: number; city?: string; country?: string } | null;
@@ -45,6 +53,13 @@ type SecurityLog = {
 };
 
 type ConnectionStatus = "connecting" | "live" | "error" | "closed";
+
+type BlockedUser = {
+  id: string;
+  email: string;
+  riskScore: number;
+  updatedAt: string;
+};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -97,6 +112,10 @@ export function AdminCommandCenter() {
   const [status, setStatus]                 = useState<ConnectionStatus>("connecting");
   const [newCount, setNewCount]             = useState(0);
   const [flashIds, setFlashIds]             = useState<Set<string>>(new Set());
+  const [blockedUsers, setBlockedUsers]     = useState<BlockedUser[]>([]);
+  const [typeFilter, setTypeFilter]         = useState("ALL");
+  const [severityFilter, setSeverityFilter] = useState("ALL");
+  const [timeFilter, setTimeFilter]         = useState("ALL"); // ALL, HOUR, DAY
   const feedRef                             = useRef<HTMLDivElement>(null);
   const esRef                               = useRef<EventSource | null>(null);
   const initialised                         = useRef(false);
@@ -112,9 +131,11 @@ export function AdminCommandCenter() {
         const payload = JSON.parse(e.data as string) as {
           logs: SecurityLog[];
           sessions: AdminSession[];
+          blocked: BlockedUser[];
         };
         setSessions(payload.sessions);
         setLogs(payload.logs);
+        setBlockedUsers(payload.blocked || []);
         setStatus("live");
         initialised.current = true;
       });
@@ -144,6 +165,11 @@ export function AdminCommandCenter() {
         setSessions(payload);
       });
 
+      es.addEventListener("blocked", (e: MessageEvent) => {
+        const payload = JSON.parse(e.data as string) as BlockedUser[];
+        setBlockedUsers(payload);
+      });
+
       es.onerror = () => {
         setStatus("error");
         es.close();
@@ -161,17 +187,35 @@ export function AdminCommandCenter() {
   }, []);
 
   // ── Globe data ──────────────────────────────────────────────────────────
-  const points = sessions.map(s => ({
-    lat:   s.location?.lat ?? 0,
-    lng:   s.location?.lon ?? 0,
-    size:  s.isFlagged ? 0.65 : 0.32,
-    color: s.isFlagged ? "#ef4444" : "#22c55e",
-    label: `${s.email} • ${s.location?.city ?? "Unknown"}`
-  }));
+  const points = sessions
+    .filter(s => !s.isBlocked) // User request: remove blocked emails from globe
+    .map(s => ({
+      lat:   s.location?.lat ?? 0,
+      lng:   s.location?.lon ?? 0,
+      size:  s.isFlagged ? 0.8 + (s.riskScore / 200) : 0.32,
+      color: s.isFlagged ? "#ef4444" : "#22c55e",
+      label: `${s.isFlagged ? "[RISKY] " : ""}${s.email} • ${s.location?.city ?? "Unknown"}`
+    }));
+
+  const filteredLogs = useMemo(() => {
+    return logs.filter(log => {
+      if (typeFilter !== "ALL" && log.type !== typeFilter) return false;
+      if (severityFilter !== "ALL" && log.severity !== severityFilter) return false;
+      
+      if (timeFilter !== "ALL") {
+        const logDate = new Date(log.timestamp).getTime();
+        const now = Date.now();
+        if (timeFilter === "HOUR" && now - logDate > 3600000) return false;
+        if (timeFilter === "DAY" && now - logDate > 86400000) return false;
+      }
+      
+      return true;
+    });
+  }, [logs, typeFilter, severityFilter, timeFilter]);
 
   const arcs = useMemo(
     () =>
-      logs
+      filteredLogs
         .filter(l => l.type === "IMPOSSIBLE_TRAVEL")
         .map(l => {
           const m = l.metadata as {
@@ -187,7 +231,7 @@ export function AdminCommandCenter() {
           };
         })
         .filter(a => a.startLat && a.startLng && a.endLat && a.endLng),
-    [logs]
+    [filteredLogs]
   );
 
   // ── Clear unread badge when user scrolls to top ─────────────────────────
@@ -273,8 +317,50 @@ export function AdminCommandCenter() {
               )}
             </div>
             <span className="text-xs text-slate-500">
-              {logs.length} event{logs.length !== 1 ? "s" : ""}
+              {filteredLogs.length} match{filteredLogs.length !== 1 ? "es" : ""}
             </span>
+          </div>
+
+          {/* Filter Bar */}
+          <div className="flex flex-wrap items-center gap-2 border-b border-cyan-300/10 bg-cyan-300/5 px-4 py-3">
+            <FilterControl
+              icon={LayoutGrid}
+              label="Type"
+              value={typeFilter}
+              onChange={setTypeFilter}
+              options={[
+                { label: "All Types", value: "ALL" },
+                { label: "Login Success", value: "LOGIN_SUCCESS" },
+                { label: "Login Failure", value: "LOGIN_FAILURE" },
+                { label: "Honeypot", value: "HONEYPOT" },
+                { label: "Bot Velocity", value: "BOT_VELOCITY" },
+                { label: "Impossible Travel", value: "IMPOSSIBLE_TRAVEL" },
+              ]}
+            />
+            <FilterControl
+              icon={Shield}
+              label="Level"
+              value={severityFilter}
+              onChange={setSeverityFilter}
+              options={[
+                { label: "All Levels", value: "ALL" },
+                { label: "Critical", value: "CRITICAL" },
+                { label: "High", value: "HIGH" },
+                { label: "Medium", value: "MEDIUM" },
+                { label: "Low", value: "LOW" },
+              ]}
+            />
+            <FilterControl
+              icon={Clock}
+              label="Time"
+              value={timeFilter}
+              onChange={setTimeFilter}
+              options={[
+                { label: "All Time", value: "ALL" },
+                { label: "Last Hour", value: "HOUR" },
+                { label: "Last 24h", value: "DAY" },
+              ]}
+            />
           </div>
 
           <div
@@ -287,16 +373,59 @@ export function AdminCommandCenter() {
               <FeedSkeleton />
             ) : (
               <div className="grid gap-2.5">
-                {logs.map(log => (
-                  <LogCard
-                    key={log.id}
-                    log={log}
-                    isNew={flashIds.has(log.id)}
-                  />
-                ))}
+                {filteredLogs.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <Filter className="mb-3 h-10 w-10 text-slate-600" />
+                    <p className="text-sm font-medium text-slate-400">No events match your filters</p>
+                    <button 
+                      onClick={() => { setTypeFilter("ALL"); setSeverityFilter("ALL"); setTimeFilter("ALL"); }}
+                      className="mt-4 text-xs font-semibold text-cyan-400 hover:text-cyan-300"
+                    >
+                      Clear all filters
+                    </button>
+                  </div>
+                ) : (
+                  filteredLogs.map(log => (
+                    <LogCard
+                      key={log.id}
+                      log={log}
+                      isNew={flashIds.has(log.id)}
+                    />
+                  ))
+                )}
               </div>
             )}
           </div>
+        </article>
+      </section>
+
+      {/* ── Blocked Accounts ── */}
+      <section>
+        <article className="rounded-xl border border-red-500/15 bg-slate-950/85 p-6 shadow-[0_0_24px_rgba(239,68,68,0.06)]">
+          <div className="mb-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-red-500/10 p-2">
+                <Ban className="h-5 w-5 text-red-400" />
+              </div>
+              <h2 className="text-xl font-bold text-white">Blocked Access Control</h2>
+            </div>
+            <span className="text-sm font-medium text-slate-500">
+              {blockedUsers.length} account{blockedUsers.length !== 1 ? "s" : ""} blacklisted
+            </span>
+          </div>
+
+          {blockedUsers.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-white/5 py-12">
+              <Shield className="mb-3 h-10 w-10 text-slate-700" />
+              <p className="text-sm text-slate-500">No active blocks enforced</p>
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {blockedUsers.map(user => (
+                <BlockedUserCard key={user.id} user={user} />
+              ))}
+            </div>
+          )}
         </article>
       </section>
     </div>
@@ -370,9 +499,64 @@ function Metric({
   );
 }
 
-function LogCard({ log, isNew }: { log: SecurityLog; isNew: boolean }) {
+function LogCard({ log: initialLog, isNew }: { log: SecurityLog; isNew: boolean }) {
+  const [log, setLog] = useState(initialLog);
+  const [blocking, setBlocking] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const severe = log.severity === "HIGH" || log.severity === "CRITICAL";
   const Icon   = getEventIcon(log.type);
+  const email  = (log.metadata as { email?: string })?.email;
+
+  // Auto-analyze if missing and risk is MEDIUM or higher
+  useEffect(() => {
+    const autoSeverity = ["MEDIUM", "HIGH", "CRITICAL"];
+    if (!log.aiAnalysis && !analyzing && autoSeverity.includes(log.severity)) {
+      handleAnalyze();
+    }
+  }, [log.aiAnalysis, log.severity]);
+
+  async function handleAnalyze() {
+    if (analyzing) return;
+    setAnalyzing(true);
+    try {
+      const res = await fetch("/api/security/admin/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ logId: log.id })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setLog(prev => ({ ...prev, aiAnalysis: data.aiAnalysis }));
+      }
+    } catch (err) {
+      console.error("Analysis trigger failed");
+    } finally {
+      setAnalyzing(false);
+    }
+  }
+
+  async function handleBlock() {
+    if (!email || !confirm(`Are you sure you want to PERMANENTLY block ${email}? This will revoke all their active sessions.`)) return;
+    
+    setBlocking(true);
+    try {
+      const res = await fetch("/api/security/admin/block", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email })
+      });
+      if (res.ok) {
+        alert(`Successfully blocked ${email}`);
+      } else {
+        const data = await res.json();
+        alert(`Error: ${data.error || "Failed to block user"}`);
+      }
+    } catch (err) {
+      alert("Failed to communicate with the security server.");
+    } finally {
+      setBlocking(false);
+    }
+  }
 
   return (
     <section
@@ -399,24 +583,61 @@ function LogCard({ log, isNew }: { log: SecurityLog; isNew: boolean }) {
             </span>
           )}
         </div>
-        <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${severityBadge(log.severity)}`}>
-          {log.severity}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${severityBadge(log.severity)}`}>
+            {log.severity}
+          </span>
+          {email && (
+            <button
+              onClick={handleBlock}
+              disabled={blocking}
+              title={`Block ${email}`}
+              className="flex items-center gap-1.5 rounded-full bg-red-500/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-red-400 ring-1 ring-red-500/30 transition hover:bg-red-500/20 disabled:opacity-50"
+            >
+              {blocking ? <Loader2 className="h-3 w-3 animate-spin" /> : <Ban className="h-3 w-3" />}
+              Block
+            </button>
+          )}
+        </div>
       </div>
 
       <p className="mt-2 text-sm leading-6 text-slate-300">{log.details}</p>
 
       {log.aiAnalysis ? (
         <div className="mt-3 rounded-md border border-cyan-300/10 bg-cyan-300/5 p-3">
-          <p className="text-xs font-semibold text-cyan-200">
-            Gemini confidence: {log.aiAnalysis.confidence_score}%
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <Sparkles className="h-3 w-3 text-cyan-400" />
+            <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-400">
+              Gemini Insight • {log.aiAnalysis.confidence_score}% Confidence
+            </p>
+          </div>
+          <p className="text-xs leading-5 text-slate-300">
+            {log.aiAnalysis.incident_summary}
           </p>
           {log.aiAnalysis.recommended_action && (
-            <p className="mt-1 text-xs leading-5 text-slate-300">
-              {log.aiAnalysis.recommended_action}
-            </p>
+            <div className="mt-2 border-t border-cyan-300/5 pt-2">
+              <p className="text-[10px] font-medium text-cyan-300/70">RECOMMENDED ACTION:</p>
+              <p className="text-[10px] font-semibold text-cyan-200">
+                {log.aiAnalysis.recommended_action}
+              </p>
+            </div>
           )}
         </div>
+      ) : analyzing ? (
+        <div className="mt-3 flex items-center gap-3 rounded-md border border-cyan-300/5 bg-slate-900/50 p-4">
+          <Loader2 className="h-4 w-4 animate-spin text-cyan-500" />
+          <p className="text-xs animate-pulse font-medium text-slate-500">
+            Gemini is analyzing behavioral patterns...
+          </p>
+        </div>
+      ) : log.severity === "LOW" && !log.aiAnalysis ? (
+        <button 
+          onClick={handleAnalyze}
+          className="mt-3 flex items-center gap-2 rounded-md border border-dashed border-white/10 bg-white/5 px-3 py-2 text-[10px] font-semibold text-slate-400 transition hover:bg-white/10"
+        >
+          <Sparkles className="h-3 w-3" />
+          Generate AI Summary
+        </button>
       ) : null}
 
       <p className="mt-3 text-xs text-slate-500">
@@ -438,6 +659,76 @@ function FeedSkeleton() {
       {Array.from({ length: 5 }).map((_, i) => (
         <div key={i} className="h-20 rounded-lg border border-cyan-300/10 bg-slate-900/60" />
       ))}
+    </div>
+  );
+}
+
+function FilterControl({
+  icon: Icon,
+  label,
+  value,
+  onChange,
+  options
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+  onChange: (val: string) => void;
+  options: { label: string; value: string }[];
+}) {
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-cyan-300/10 bg-slate-900/40 px-2 py-1.5 transition-colors hover:border-cyan-300/20">
+      <Icon className="h-3.5 w-3.5 text-slate-400" />
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="bg-transparent text-[11px] font-medium text-slate-300 focus:outline-none appearance-none cursor-pointer pr-1"
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value} className="bg-slate-900 text-slate-300">
+            {opt.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function BlockedUserCard({ user }: { user: BlockedUser }) {
+  const [unblocking, setUnblocking] = useState(false);
+
+  async function handleUnblock() {
+    if (!confirm(`Unblock ${user.email}?`)) return;
+    setUnblocking(true);
+    try {
+      const res = await fetch("/api/security/admin/unblock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: user.email })
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      alert("Failed to unblock user");
+    } finally {
+      setUnblocking(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-red-500/10 bg-red-500/5 p-4 ring-1 ring-red-500/20">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-white">{user.email}</p>
+        <p className="mt-1 text-[10px] text-slate-500">
+          Risk: {user.riskScore} • Blocked {new Date(user.updatedAt).toLocaleDateString()}
+        </p>
+      </div>
+      <button
+        onClick={handleUnblock}
+        disabled={unblocking}
+        className="ml-4 shrink-0 rounded-md bg-red-500/10 px-3 py-1.5 text-xs font-bold text-red-400 transition hover:bg-red-500/20 disabled:opacity-50"
+      >
+        {unblocking ? "..." : "Unblock"}
+      </button>
     </div>
   );
 }

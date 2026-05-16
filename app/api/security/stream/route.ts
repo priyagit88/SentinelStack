@@ -39,7 +39,7 @@ async function buildSnapshot() {
     Session.find({ expiresAt: { $gt: new Date() } })
       .sort({ createdAt: -1 })
       .lean(),
-    User.find({}).select("id email isFlagged riskScore").lean()
+    User.find({}).select("id email isFlagged isBlocked riskScore").lean()
   ]);
 
   const userById = new Map(users.flatMap(u => [[String(u.id ?? u._id), u]]));
@@ -60,6 +60,7 @@ async function buildSnapshot() {
         userId: String(s.userId),
         email: user?.email ?? "unknown@sentinelstack.local",
         isFlagged: Boolean(user?.isFlagged),
+        isBlocked: Boolean(user?.isBlocked),
         riskScore: Number(user?.riskScore ?? 0),
         ipAddress: s.ipAddress,
         userAgent: s.userAgent,
@@ -67,6 +68,14 @@ async function buildSnapshot() {
         createdAt: s.createdAt
       };
     });
+}
+
+/** Fetch all blocked users. */
+async function getBlockedUsers() {
+  return User.find({ isBlocked: true })
+    .select("id email riskScore updatedAt")
+    .sort({ updatedAt: -1 })
+    .lean();
 }
 
 /** Helper — send a single SSE frame. */
@@ -92,10 +101,11 @@ export async function GET() {
   const newest = await SecurityLog.findOne({}).sort({ _id: -1 }).select("_id").lean();
   let lastId: mongoose.Types.ObjectId | null = newest ? newest._id as mongoose.Types.ObjectId : null;
 
-  // Initial snapshot of the last 50 logs + sessions.
-  const [initialLogs, initialSessions] = await Promise.all([
+  // Initial snapshot of the last 50 logs + sessions + blocked users.
+  const [initialLogs, initialSessions, blockedUsers] = await Promise.all([
     SecurityLog.find({}).sort({ timestamp: -1 }).limit(50).lean(),
-    buildSnapshot()
+    buildSnapshot(),
+    getBlockedUsers()
   ]);
 
   const encoder = new TextEncoder();
@@ -107,7 +117,8 @@ export async function GET() {
         encoder.encode(
           frame("init", {
             logs: initialLogs.map(serializeLog),
-            sessions: initialSessions
+            sessions: initialSessions,
+            blocked: blockedUsers
           })
         )
       );
@@ -137,8 +148,9 @@ export async function GET() {
 
           // Periodically push a fresh session snapshot so the globe stays live.
           if (tick % SESSION_EVERY === 0) {
-            const sessions = await buildSnapshot();
+            const [sessions, blocked] = await Promise.all([buildSnapshot(), getBlockedUsers()]);
             controller.enqueue(encoder.encode(frame("sessions", sessions)));
+            controller.enqueue(encoder.encode(frame("blocked", blocked)));
           }
 
           // Keep-alive comment so proxies don't close idle connections.
