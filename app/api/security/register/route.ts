@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { isAPIError } from "better-auth/api";
+import { APIError } from "better-auth/api";
 import { auth } from "@/lib/auth";
 import { connectMongoose } from "@/lib/db";
 import { User } from "@/lib/models/user";
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (error) {
-    const message = isAPIError(error) ? error.message : "Unable to create account.";
+    const message = error instanceof APIError ? error.message : "Unable to create account.";
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

@@ -202,8 +202,13 @@ export async function recordSecurityEvent(args: {
 
 export async function flagUser(userId: string, riskDelta: number) {
   await connectMongoose();
+  const selectors: Record<string, unknown>[] = [{ id: userId }];
+  if (mongoose.Types.ObjectId.isValid(userId)) {
+    selectors.push({ _id: new mongoose.Types.ObjectId(userId) });
+  }
+
   await User.updateOne(
-    { $or: [{ id: userId }, { _id: mongoose.Types.ObjectId.isValid(userId) ? userId : undefined }] },
+    { $or: selectors },
     { $set: { isFlagged: true }, $inc: { riskScore: riskDelta } }
   );
 }

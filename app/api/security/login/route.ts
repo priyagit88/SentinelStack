@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { isAPIError } from "better-auth/api";
+import { APIError } from "better-auth/api";
 import { auth } from "@/lib/auth";
 
 export const runtime = "nodejs";
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       asResponse: true
     });
   } catch (error) {
-    const message = isAPIError(error) ? error.message : "Unable to sign in.";
+    const message = error instanceof APIError ? error.message : "Unable to sign in.";
     return NextResponse.json({ error: message }, { status: 401 });
   }
 }
