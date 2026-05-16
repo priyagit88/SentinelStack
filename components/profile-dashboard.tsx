@@ -109,6 +109,7 @@ export function ProfileDashboard() {
 
   async function handleLinkPassword(e: React.FormEvent) {
     e.preventDefault();
+    if (!data) return;
     setPasswordForm(prev => ({ ...prev, error: "", success: "" }));
     
     const { newPassword, confirmPassword } = passwordForm;

@@ -175,24 +175,23 @@ const baseAuthOptions = {
             type: "LOGIN_SUCCESS",
             severity: "LOW",
             details: `Successful authentication from ${session.ipAddress}.`,
-            ip: session.ipAddress,
+            ip: session.ipAddress ?? "0.0.0.0",
             metadata: {
               device: userAgentToDevice(session.userAgent ?? undefined),
               userAgent: session.userAgent
             }
           });
-          return { data: session };
         },
-        delete: {
-          after: async (session) => {
-            await recordSecurityEvent({
-              userId: String(session.userId),
-              type: "SESSION_REVOKED",
-              severity: "LOW",
-              details: `Session revoked for ${session.ipAddress}.`,
-              ip: session.ipAddress ?? "0.0.0.0"
-            });
-          }
+      },
+      delete: {
+        after: async (session: { userId: string | number; ipAddress?: string | null }) => {
+          await recordSecurityEvent({
+            userId: String(session.userId),
+            type: "SESSION_REVOKED",
+            severity: "LOW",
+            details: `Session revoked for ${session.ipAddress}.`,
+            ip: session.ipAddress ?? "0.0.0.0"
+          });
         }
       }
     },
@@ -210,7 +209,6 @@ const baseAuthOptions = {
               name: user.name
             }
           });
-          return { data: user };
         }
       },
       delete: {

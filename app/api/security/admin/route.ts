@@ -43,7 +43,7 @@ export async function GET() {
           try {
             session.location = JSON.parse(session.location);
           } catch (e) {
-            session.location = null;
+            session.location = undefined;
           }
         }
         return session;
