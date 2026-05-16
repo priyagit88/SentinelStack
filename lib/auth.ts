@@ -169,36 +169,35 @@ const baseAuthOptions = {
             }
           };
         },
-        after: async (session) => {
+        after: async (session: any) => {
           await recordSecurityEvent({
             userId: String(session.userId),
             type: "LOGIN_SUCCESS",
             severity: "LOW",
             details: `Successful authentication from ${session.ipAddress}.`,
-            ip: session.ipAddress,
+            ip: session.ipAddress ?? "0.0.0.0",
             metadata: {
               device: userAgentToDevice(session.userAgent ?? undefined),
               userAgent: session.userAgent
             }
           });
-          return { data: session };
-        },
-        delete: {
-          after: async (session) => {
-            await recordSecurityEvent({
-              userId: String(session.userId),
-              type: "SESSION_REVOKED",
-              severity: "LOW",
-              details: `Session revoked for ${session.ipAddress}.`,
-              ip: session.ipAddress ?? "0.0.0.0"
-            });
-          }
+        }
+      },
+      delete: {
+        after: async (session: any) => {
+          await recordSecurityEvent({
+            userId: String(session.userId),
+            type: "SESSION_REVOKED",
+            severity: "LOW",
+            details: `Session revoked for ${session.ipAddress}.`,
+            ip: session.ipAddress ?? "0.0.0.0"
+          });
         }
       }
     },
     user: {
       create: {
-        after: async (user) => {
+        after: async (user: any) => {
           await recordSecurityEvent({
             userId: String(user.id),
             type: "REGISTER_SUCCESS",
@@ -210,11 +209,10 @@ const baseAuthOptions = {
               name: user.name
             }
           });
-          return { data: user };
         }
       },
       delete: {
-        after: async (user) => {
+        after: async (user: any) => {
           await connectMongoose();
           const userIdStr = String(user.id);
           const userIdObj = mongoose.Types.ObjectId.isValid(userIdStr) 
