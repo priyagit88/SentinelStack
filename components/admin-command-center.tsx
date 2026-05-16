@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BrainCircuit, RadioTower } from "lucide-react";
+import { AlertTriangle, BrainCircuit, RadioTower, UserPlus, LogIn, LogOut, ShieldAlert, Fingerprint } from "lucide-react";
 
 const Globe = dynamic(() => import("react-globe.gl"), { ssr: false });
 
@@ -29,6 +29,20 @@ type SecurityLog = {
   } | null;
   metadata?: Record<string, unknown>;
 };
+
+function getEventIcon(type: string) {
+  switch (type) {
+    case "LOGIN_SUCCESS": return LogIn;
+    case "LOGIN_FAILURE": return ShieldAlert;
+    case "REGISTER_SUCCESS": return UserPlus;
+    case "REGISTER_FAILURE": return ShieldAlert;
+    case "SESSION_REVOKED": return LogOut;
+    case "HONEYPOT": return Fingerprint;
+    case "BOT_VELOCITY": return RadioTower;
+    case "IMPOSSIBLE_TRAVEL": return AlertTriangle;
+    default: return ShieldAlert;
+  }
+}
 
 export function AdminCommandCenter() {
   const [sessions, setSessions] = useState<AdminSession[]>([]);
@@ -139,7 +153,13 @@ export function AdminCommandCenter() {
                     }`}
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm font-semibold text-white">{log.type}</span>
+                      <div className="flex items-center gap-2">
+                        {(() => {
+                          const Icon = getEventIcon(log.type);
+                          return <Icon className={`h-4 w-4 ${severe ? "text-red-400" : "text-cyan-400"}`} />;
+                        })()}
+                        <span className="text-sm font-semibold text-white">{log.type.replace("_", " ")}</span>
+                      </div>
                       <span
                         className={`rounded-full px-2 py-1 text-xs ${
                           severe ? "bg-red-500/15 text-red-200" : "bg-cyan-500/15 text-cyan-200"

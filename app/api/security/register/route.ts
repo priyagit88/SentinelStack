@@ -91,6 +91,13 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (error) {
+    await recordSecurityEvent({
+      type: "REGISTER_FAILURE",
+      severity: "MEDIUM",
+      details: `Failed registration attempt for email: ${body.email}`,
+      ip,
+      metadata: { email: body.email }
+    });
     const message = error instanceof APIError ? error.message : "Unable to create account.";
     return NextResponse.json({ error: message }, { status: 400 });
   }

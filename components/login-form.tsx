@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, LogIn } from "lucide-react";
+import { Loader2, LogIn, Eye, EyeOff } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 
 export function LoginForm() {
   const router = useRouter();
   const [error, setError] = useState("");
   const [isPending, setPending] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function signInWithProvider(provider: "google" | "github") {
     setPending(true);
@@ -54,12 +55,21 @@ export function LoginForm() {
       </label>
       <label className="grid gap-2 text-sm text-slate-300">
         Password
-        <input
-          name="password"
-          type="password"
-          required
-          className="rounded-md border border-cyan-200/20 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-300"
-        />
+        <div className="relative">
+          <input
+            name="password"
+            type={showPassword ? "text" : "password"}
+            required
+            className="w-full rounded-md border border-cyan-200/20 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-300 pr-10"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-cyan-300 transition-colors"
+          >
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
       </label>
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
       <button
