@@ -1,9 +1,13 @@
 "use client";
 
 import { createAuthClient } from "better-auth/react";
-import { customSessionClient } from "better-auth/client/plugins";
+import { customSessionClient, magicLinkClient, emailOTPClient } from "better-auth/client/plugins";
 import type { auth } from "@/lib/auth";
 
 export const authClient = createAuthClient({
-  plugins: [customSessionClient<typeof auth>()]
+  plugins: [
+    customSessionClient<typeof auth>(),
+    magicLinkClient(),
+    emailOTPClient()
+  ]
 });

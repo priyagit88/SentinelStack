@@ -60,15 +60,29 @@ export function userAgentToDevice(userAgent = "Unknown device") {
   return `${browser} on ${os}`;
 }
 
-export async function resolveIpLocation(ipAddress: string): Promise<GeoLocation> {
-  const normalized = ipAddress.replace("::ffff:", "");
+export async function resolveIpLocation(ipAddress: string): Promise<GeoLocation & { realIp?: string }> {
+  let normalized = ipAddress.replace("::ffff:", "");
+  
+  // If we are testing locally, let's grab the real public IP to make the demo realistic
+  if (normalized === "127.0.0.1" || normalized === "::1" || normalized === "localhost") {
+    try {
+      const ipResponse = await fetch("https://api64.ipify.org?format=json", { next: { revalidate: 3600 } });
+      const ipData = await ipResponse.json();
+      if (ipData.ip) {
+        normalized = ipData.ip;
+      }
+    } catch {
+      // Fallback to local default if ipify fails
+    }
+  }
+
   if (
     LOCAL_LOCATIONS[normalized] ||
     normalized.startsWith("192.168.") ||
     normalized.startsWith("10.") ||
     normalized.startsWith("172.16.")
   ) {
-    return LOCAL_LOCATIONS[normalized] ?? LOCAL_LOCATIONS["127.0.0.1"];
+    return { ...LOCAL_LOCATIONS[normalized] ?? LOCAL_LOCATIONS["127.0.0.1"], realIp: normalized };
   }
 
   try {
@@ -89,14 +103,15 @@ export async function resolveIpLocation(ipAddress: string): Promise<GeoLocation>
         lat: data.lat,
         lon: data.lon,
         city: data.city ?? "Unknown",
-        country: data.country ?? "Unknown"
+        country: data.country ?? "Unknown",
+        realIp: normalized
       };
     }
   } catch {
-    // Local development and restricted networks fall back to a stable realistic coordinate.
+    // Fallback
   }
 
-  return LOCAL_LOCATIONS["127.0.0.1"];
+  return { ...LOCAL_LOCATIONS["127.0.0.1"], realIp: normalized };
 }
 
 export function haversineKm(a: GeoLocation, b: GeoLocation) {

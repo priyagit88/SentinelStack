@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { MonitorCheck, ShieldAlert, ShieldCheck, Trash2, AlertTriangle } from "lucide-react";
+import { MonitorCheck, ShieldAlert, ShieldCheck, Trash2, AlertTriangle, Key, Eye, EyeOff } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 
@@ -28,6 +28,17 @@ export function ProfileDashboard() {
   const [accounts, setAccounts] = useState<LinkedAccount[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ 
+    newPassword: "", 
+    confirmPassword: "", 
+    otp: "",
+    step: "initial" as "initial" | "otp",
+    error: "", 
+    success: "", 
+    loading: false,
+    showPassword: false,
+    showConfirmPassword: false
+  });
   const router = useRouter();
 
   async function loadSessions() {
@@ -96,6 +107,70 @@ export function ProfileDashboard() {
     }
   }
 
+  async function handleLinkPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setPasswordForm(prev => ({ ...prev, error: "", success: "" }));
+    
+    const { newPassword, confirmPassword } = passwordForm;
+    if (newPassword !== confirmPassword) {
+      return setPasswordForm(prev => ({ ...prev, error: "Passwords do not match." }));
+    }
+    if (newPassword.length < 8) {
+      return setPasswordForm(prev => ({ ...prev, error: "Password must be at least 8 characters long." }));
+    }
+    if (!/[0-9!@#$%^&*(),.?":{}|<>]/.test(newPassword)) {
+      return setPasswordForm(prev => ({ ...prev, error: "Password must contain at least one number or special character." }));
+    }
+
+    setPasswordForm(prev => ({ ...prev, loading: true }));
+    try {
+      if (passwordForm.step === "initial") {
+        // Step 1: Send OTP
+        const { error: otpError } = await authClient.emailOtp.sendVerificationOtp({
+          email: data.user.email,
+          type: "email-verification"
+        });
+        if (otpError) throw otpError;
+        
+        setPasswordForm(prev => ({ ...prev, step: "otp", loading: false, success: "Verification code sent to your email." }));
+        return;
+      }
+
+      // Step 2: Verify OTP and Set Password
+      const client = authClient as any;
+      
+      // Verify OTP first
+      const verifyRes = await client.emailOtp.verifyEmail({
+        email: data.user.email,
+        otp: passwordForm.otp
+      });
+      if (verifyRes?.error) throw verifyRes.error;
+
+      // Now link the password
+      if (client.user?.linkPassword) {
+        await client.user.linkPassword({ newPassword });
+      } else if (client.setPassword) {
+        await client.setPassword({ newPassword });
+      } else {
+        throw new Error("Password linking method not found on authClient");
+      }
+      
+      setPasswordForm(prev => ({ 
+        ...prev, 
+        success: "Identity verified and password successfully linked!", 
+        loading: false, 
+        newPassword: "", 
+        confirmPassword: "",
+        otp: "",
+        step: "initial"
+      }));
+      await loadAccounts();
+    } catch (error: any) {
+      console.error("Failed to link password:", error);
+      setPasswordForm(prev => ({ ...prev, error: error.message || "Operation failed. Please try again.", loading: false }));
+    }
+  }
+
   if (isPending) {
     return <div className="text-slate-300">Loading profile...</div>;
   }
@@ -112,7 +187,15 @@ export function ProfileDashboard() {
         <article className="rounded-lg border border-cyan-300/15 bg-slate-950/80 p-6">
           <p className="text-sm uppercase tracking-[0.22em] text-cyan-300">Identity</p>
           <h1 className="mt-3 text-3xl font-semibold text-white">{data.user.name}</h1>
-          <p className="mt-2 text-slate-400">{data.user.email}</p>
+          <div className="mt-2 flex items-center gap-2">
+            <p className="text-slate-400">{data.user.email}</p>
+            {data.user.emailVerified && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-400">
+                <ShieldCheck className="h-3 w-3" />
+                Verified
+              </span>
+            )}
+          </div>
         </article>
         <article className="rounded-lg border border-cyan-300/15 bg-slate-950/80 p-6">
           <div className="flex items-center justify-between gap-3">
@@ -241,6 +324,123 @@ export function ProfileDashboard() {
                 )}
               </div>
             </>
+          )}
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-cyan-300/15 bg-slate-950/80">
+        <div className="flex items-center gap-2 border-b border-cyan-300/10 px-5 py-4">
+          <Key className="h-5 w-5 text-cyan-300" />
+          <h2 className="text-lg font-semibold text-white">Security Settings</h2>
+        </div>
+        <div className="p-5">
+          {loadingAccounts ? (
+            <p className="text-sm text-slate-400">Loading...</p>
+          ) : accounts.some(a => a.providerId === "credential") ? (
+            <div className="rounded-md border border-slate-800 bg-slate-900/50 p-4">
+              <p className="text-sm text-slate-300">Your account already has a password set. You can use your email and password to log in.</p>
+            </div>
+          ) : (
+            <form onSubmit={handleLinkPassword} className="max-w-md space-y-4">
+              <p className="text-sm text-slate-400">
+                You signed up using a social provider. Create a password to enable email/password login as well.
+              </p>
+              {passwordForm.error && <p className="text-sm text-red-400">{passwordForm.error}</p>}
+              {passwordForm.success && <p className="text-sm text-emerald-400">{passwordForm.success}</p>}
+              
+              {passwordForm.step === "initial" ? (
+                <>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-300">Email Address</label>
+                    <input
+                      type="email"
+                      value={data.user.email}
+                      readOnly
+                      className="w-full rounded-md border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-slate-400 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-300">New Password</label>
+                    <div className="relative">
+                      <input
+                        type={passwordForm.showPassword ? "text" : "password"}
+                        value={passwordForm.newPassword}
+                        onChange={(e) => setPasswordForm(prev => ({ ...prev, newPassword: e.target.value }))}
+                        required
+                        className="w-full rounded-md border border-cyan-300/20 bg-slate-900 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400 pr-10"
+                        placeholder="At least 8 characters"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setPasswordForm(prev => ({ ...prev, showPassword: !prev.showPassword }))}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-cyan-300 transition-colors"
+                      >
+                        {passwordForm.showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-300">Confirm New Password</label>
+                    <div className="relative">
+                      <input
+                        type={passwordForm.showConfirmPassword ? "text" : "password"}
+                        value={passwordForm.confirmPassword}
+                        onChange={(e) => setPasswordForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                        required
+                        className="w-full rounded-md border border-cyan-300/20 bg-slate-900 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400 pr-10"
+                        placeholder="Confirm password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setPasswordForm(prev => ({ ...prev, showConfirmPassword: !prev.showConfirmPassword }))}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-cyan-300 transition-colors"
+                      >
+                        {passwordForm.showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-4 rounded-lg border border-purple-500/20 bg-purple-500/5 p-4">
+                  <p className="text-xs font-medium uppercase tracking-wider text-purple-400">Step 2: Identity Verification</p>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-slate-300">Enter 6-Digit Code</label>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={passwordForm.otp}
+                      onChange={(e) => setPasswordForm(prev => ({ ...prev, otp: e.target.value.replace(/\D/g, "") }))}
+                      required
+                      className="w-full rounded-md border border-purple-500/30 bg-slate-900 px-3 py-2 text-center text-xl font-bold tracking-[0.5em] text-white focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400"
+                      placeholder="000000"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPasswordForm(prev => ({ ...prev, step: "initial", success: "" }))}
+                    className="text-xs text-slate-500 hover:text-slate-300"
+                  >
+                    ← Back to password entry
+                  </button>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={passwordForm.loading}
+                className={`w-full rounded-md px-4 py-2 text-sm font-semibold ring-1 ring-inset transition-all disabled:opacity-50 ${
+                  passwordForm.step === "initial" 
+                    ? "bg-cyan-500/20 text-cyan-100 ring-cyan-500/40 hover:bg-cyan-500/30" 
+                    : "bg-purple-500/20 text-purple-100 ring-purple-500/40 hover:bg-purple-500/30"
+                }`}
+              >
+                {passwordForm.loading 
+                  ? "Processing..." 
+                  : passwordForm.step === "initial" 
+                    ? "Verify Email & Link Password" 
+                    : "Confirm Verification Code"}
+              </button>
+            </form>
           )}
         </div>
       </section>
