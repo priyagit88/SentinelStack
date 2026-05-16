@@ -104,22 +104,22 @@ const baseAuthOptions = {
     }
   },
   databaseHooks: {
-    signIn: {
-      before: async (ctx) => {
-        const body = ctx.body as { email?: string };
-        if (!body.email) return;
-        
-        await connectMongoose();
-        const user = await User.findOne({ email: body.email }).select("isBlocked").lean<{ isBlocked?: boolean } | null>();
-        
-        if (user?.isBlocked) {
-          throw new Error("Your account has been blocked by an administrator for security violations.");
-        }
-      }
-    },
     session: {
       create: {
         before: async (session, ctx) => {
+          // 1. Block Guard: Prevent sessions for blocked users
+          await connectMongoose();
+          const user = await User.findOne({ 
+            $or: [
+              { id: session.userId },
+              { _id: mongoose.Types.ObjectId.isValid(String(session.userId)) ? new mongoose.Types.ObjectId(String(session.userId)) : null }
+            ]
+          }).select("isBlocked").lean<{ isBlocked?: boolean } | null>();
+
+          if (user?.isBlocked) {
+            throw new Error("Your account has been blocked by an administrator for security violations.");
+          }
+
           const context = (ctx as { context?: { headers?: Headers } } | null)?.context;
           let ipAddress = typeof session.ipAddress === "string" && session.ipAddress ? session.ipAddress : "127.0.0.1";
           let userAgent = session.userAgent ?? undefined;
