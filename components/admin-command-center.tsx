@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BrainCircuit, RadioTower, UserPlus, LogIn, LogOut, ShieldAlert, Fingerprint } from "lucide-react";
+import { AlertTriangle, BrainCircuit, RadioTower, UserPlus, LogIn, LogOut, ShieldAlert, Fingerprint, Bot } from "lucide-react";
 
 const Globe = dynamic(() => import("react-globe.gl"), { ssr: false });
 
@@ -39,6 +39,7 @@ function getEventIcon(type: string) {
     case "SESSION_REVOKED": return LogOut;
     case "HONEYPOT": return Fingerprint;
     case "BOT_VELOCITY": return RadioTower;
+    case "CAPTCHA_FAILED": return Bot;
     case "IMPOSSIBLE_TRAVEL": return AlertTriangle;
     default: return ShieldAlert;
   }

@@ -1,7 +1,7 @@
 import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { nextCookies } from "better-auth/next-js";
-import { customSession, magicLink, emailOTP } from "better-auth/plugins";
+import { customSession, magicLink, emailOTP, twoFactor } from "better-auth/plugins";
 import { Resend } from "resend";
 import { MongoClient } from "mongodb";
 import { mongoUri } from "@/lib/db";
@@ -274,6 +274,10 @@ const authOptions = {
           console.error("Failed to send magic link:", error);
         }
       }
+    }),
+    twoFactor({
+      issuer: "SentinelStack",
+      skipVerificationOnEnable: false
     }),
     emailOTP({
       async sendVerificationOTP({ email, otp }) {
