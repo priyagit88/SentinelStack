@@ -1,7 +1,7 @@
 const { MongoClient, ObjectId } = require('mongodb');
 
 async function main() {
-  const uri = process.env.MONGODB_URI || "mongodb+srv://achintyak30_db_user:yH5jGWtgurp0waC8@sentinentalstack.jnxkadl.mongodb.net/?appName=sentinentalStack";
+  const uri = process.env.MONGODB_URI
   const client = new MongoClient(uri);
   await client.connect();
   const db = client.db();
