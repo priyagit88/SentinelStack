@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { MonitorCheck, ShieldAlert, ShieldCheck, Trash2, AlertTriangle, Key, Eye, EyeOff } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
+import { TwoFactorSettings } from "@/components/two-factor-settings";
 
 type ProfileSession = {
   id: string;
@@ -265,6 +266,16 @@ export function ProfileDashboard() {
               )}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-cyan-300/15 bg-slate-950/80">
+        <div className="flex items-center justify-between border-b border-cyan-300/10 px-5 py-4">
+          <h2 className="text-lg font-semibold text-white">Multi-Factor Authentication</h2>
+          <ShieldCheck className="h-5 w-5 text-cyan-300" />
+        </div>
+        <div className="p-5">
+          <TwoFactorSettings hasPassword={accounts.some((a) => a.providerId === "credential")} />
         </div>
       </section>
 
