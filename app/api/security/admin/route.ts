@@ -15,6 +15,11 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const adminEmails = (process.env.ADMIN_EMAILS || "").split(",").map(e => e.trim());
+  if (adminEmails.length > 0 && !adminEmails.includes(current.user.email)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   await connectMongoose();
   const [sessions, users, logs] = await Promise.all([
     Session.find({ expiresAt: { $gt: new Date() } })
@@ -33,6 +38,16 @@ export async function GET() {
 
   return NextResponse.json({
     sessions: sessions
+      .map((session) => {
+        if (typeof session.location === "string") {
+          try {
+            session.location = JSON.parse(session.location);
+          } catch (e) {
+            session.location = null;
+          }
+        }
+        return session;
+      })
       .filter((session) => session.location?.lat && session.location?.lon)
       .map((session) => {
         const user = userById.get(String(session.userId));
