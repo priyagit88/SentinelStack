@@ -20,7 +20,8 @@ import {
   LayoutGrid,
   Ban,
   Loader2,
-  Sparkles
+  Sparkles,
+  Bot
 } from "lucide-react";
 
 const Globe = dynamic(() => import("react-globe.gl"), { ssr: false });
@@ -72,6 +73,7 @@ function getEventIcon(type: string) {
     case "SESSION_REVOKED":  return LogOut;
     case "HONEYPOT":         return Fingerprint;
     case "BOT_VELOCITY":     return RadioTower;
+    case "CAPTCHA_FAILED":   return Bot;
     case "IMPOSSIBLE_TRAVEL":return AlertTriangle;
     default:                 return ShieldAlert;
   }

@@ -69,7 +69,7 @@ function VerifyRequestContent() {
         </div>
         <h2 className="mb-2 text-2xl font-bold text-white">Check Your Inbox</h2>
         <p className="mb-6 text-sm text-slate-400">
-          We've sent a secure magic link to <span className="font-semibold text-white">{email}</span>.
+          We&apos;ve sent a secure magic link to <span className="font-semibold text-white">{email}</span>.
           Click the link in the email to instantly access your dashboard.
         </p>
         <p className="text-xs text-slate-500">

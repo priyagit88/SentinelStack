@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { connectMongoose } from "@/lib/db";
 import { User } from "@/lib/models/user";
 import { getClientIp, recordSecurityEvent } from "@/lib/security";
+import { verifyTurnstile } from "@/lib/turnstile";
 
 export const runtime = "nodejs";
 
@@ -14,6 +15,7 @@ export async function POST(request: NextRequest) {
     password?: string;
     website?: string;
     focusToSubmitMs?: number;
+    captchaToken?: string;
   };
   const ip = getClientIp(request.headers);
 
@@ -32,6 +34,26 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ ok: true }, { status: 200 });
+  }
+
+  const captcha = await verifyTurnstile(body.captchaToken, ip);
+  if (!captcha.ok) {
+    await recordSecurityEvent({
+      type: "CAPTCHA_FAILED",
+      severity: "HIGH",
+      details: `Registration blocked: ${captcha.reason ?? "CAPTCHA challenge failed"}.`,
+      ip,
+      metadata: {
+        email: body.email,
+        errorCodes: captcha.errorCodes,
+        endpoint: "register"
+      },
+      runAi: false
+    });
+    return NextResponse.json(
+      { error: "CAPTCHA verification failed. Please try again." },
+      { status: 400 }
+    );
   }
 
   const automated = typeof body.focusToSubmitMs === "number" && body.focusToSubmitMs < 1500;

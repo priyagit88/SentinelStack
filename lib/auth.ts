@@ -1,7 +1,7 @@
 import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { nextCookies } from "better-auth/next-js";
-import { customSession, magicLink, emailOTP } from "better-auth/plugins";
+import { customSession, magicLink, emailOTP, twoFactor } from "better-auth/plugins";
 import { Resend } from "resend";
 import { MongoClient } from "mongodb";
 import { mongoUri } from "@/lib/db";
@@ -188,7 +188,7 @@ const baseAuthOptions = {
             }
           };
         },
-        after: async (session) => {
+        after: async (session: any) => {
           await recordSecurityEvent({
             userId: String(session.userId),
             type: "LOGIN_SUCCESS",
@@ -201,10 +201,10 @@ const baseAuthOptions = {
             },
             runAi: true
           });
-        },
+        }
       },
       delete: {
-        after: async (session: { userId: string | number; ipAddress?: string | null }) => {
+        after: async (session: any) => {
           await recordSecurityEvent({
             userId: String(session.userId),
             type: "SESSION_REVOKED",
@@ -218,7 +218,7 @@ const baseAuthOptions = {
     },
     user: {
       create: {
-        after: async (user) => {
+        after: async (user: any) => {
           await recordSecurityEvent({
             userId: String(user.id),
             type: "REGISTER_SUCCESS",
@@ -234,7 +234,7 @@ const baseAuthOptions = {
         }
       },
       delete: {
-        after: async (user) => {
+        after: async (user: any) => {
           await connectMongoose();
           const userIdStr = String(user.id);
           const userIdObj = mongoose.Types.ObjectId.isValid(userIdStr) 
@@ -296,6 +296,10 @@ const authOptions = {
           console.error("Failed to send magic link:", error);
         }
       }
+    }),
+    twoFactor({
+      issuer: "SentinelStack",
+      skipVerificationOnEnable: false
     }),
     emailOTP({
       async sendVerificationOTP({ email, otp }) {
