@@ -36,6 +36,26 @@ export async function POST(request: NextRequest) {
 
   const automated = typeof body.focusToSubmitMs === "number" && body.focusToSubmitMs < 1500;
 
+  if (body.email) {
+    await connectMongoose();
+    const existingUser = await User.findOne({ email: body.email });
+    if (existingUser) {
+      const db = (await connectMongoose()).connection.db;
+      if (db) {
+        const account = await db.collection("account").findOne({
+          userId: existingUser.id || existingUser._id?.toString(),
+          providerId: { $in: ["google", "github"] }
+        });
+        if (account) {
+          return NextResponse.json(
+            { error: "This email is registered via Social Login (Google/GitHub). Please sign in using your provider." },
+            { status: 400 }
+          );
+        }
+      }
+    }
+  }
+
   try {
     const response = await auth.api.signUpEmail({
       body: {
