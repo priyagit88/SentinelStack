@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { connectMongoose } from "@/lib/db";
+import mongoose from "mongoose";
 import { Session } from "@/lib/models/session";
 import { userAgentToDevice } from "@/lib/security";
 
@@ -15,8 +16,12 @@ export async function GET() {
   }
 
   await connectMongoose();
+  const userIdObj = mongoose.Types.ObjectId.isValid(current.user.id) 
+    ? new mongoose.Types.ObjectId(current.user.id) 
+    : null;
+
   const sessions = await Session.find({
-    userId: current.user.id,
+    userId: { $in: [current.user.id, userIdObj].filter(Boolean) },
     expiresAt: { $gt: new Date() }
   })
     .sort({ createdAt: -1 })
@@ -30,7 +35,9 @@ export async function GET() {
       ipAddress: session.ipAddress ?? "Unknown IP",
       userAgent: session.userAgent ?? "Unknown device",
       device: userAgentToDevice(session.userAgent),
-      location: session.location ?? null,
+      location: typeof session.location === "string" 
+        ? JSON.parse(session.location) 
+        : (session.location ?? null),
       createdAt: session.createdAt,
       expiresAt: session.expiresAt,
       isCurrent:

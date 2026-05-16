@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { MonitorCheck, ShieldAlert, ShieldCheck, Trash2 } from "lucide-react";
+import { MonitorCheck, ShieldAlert, ShieldCheck, Trash2, AlertTriangle } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
+import { useRouter } from "next/navigation";
 
 type ProfileSession = {
   id: string;
@@ -26,6 +27,8 @@ export function ProfileDashboard() {
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [accounts, setAccounts] = useState<LinkedAccount[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const router = useRouter();
 
   async function loadSessions() {
     setLoadingSessions(true);
@@ -67,18 +70,30 @@ export function ProfileDashboard() {
   }, [isFlagged, risk]);
 
   async function revoke(session: ProfileSession) {
-    const client = authClient as unknown as {
-      session?: { revoke?: (args: { id: string }) => Promise<unknown> };
-      revokeSession?: (args: { token: string }) => Promise<unknown>;
-    };
-
-    if (client.session?.revoke) {
-      await client.session.revoke({ id: session.id });
-    } else if (client.revokeSession) {
-      await client.revokeSession({ token: session.token });
+    try {
+      await authClient.revokeSession({ token: session.token });
+    } catch (e) {
+      console.error("Failed to revoke session:", e);
     }
-
     await loadSessions();
+  }
+
+  async function handleDeleteAccount() {
+    if (!window.confirm("Are you absolutely sure you want to delete your account? This action cannot be undone and will delete all your data.")) {
+      return;
+    }
+    
+    setIsDeleting(true);
+    try {
+      await authClient.deleteUser();
+      await authClient.signOut();
+      router.push("/register");
+      router.refresh();
+    } catch (error) {
+      console.error("Failed to delete account:", error);
+      alert("Failed to delete account. Please try again.");
+      setIsDeleting(false);
+    }
   }
 
   if (isPending) {
@@ -227,6 +242,25 @@ export function ProfileDashboard() {
               </div>
             </>
           )}
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-red-500/20 bg-red-500/5">
+        <div className="flex items-center gap-2 border-b border-red-500/20 px-5 py-4">
+          <AlertTriangle className="h-5 w-5 text-red-400" />
+          <h2 className="text-lg font-semibold text-red-200">Danger Zone</h2>
+        </div>
+        <div className="p-5">
+          <p className="mb-4 text-sm text-red-200/80">
+            Permanently delete your SentinelStack account, all associated sessions, and security logs. This action is irreversible.
+          </p>
+          <button
+            onClick={() => void handleDeleteAccount()}
+            disabled={isDeleting}
+            className="rounded-md bg-red-500/20 px-4 py-2 text-sm font-semibold text-red-200 ring-1 ring-inset ring-red-500/30 hover:bg-red-500/30 disabled:opacity-50"
+          >
+            {isDeleting ? "Deleting..." : "Delete Account"}
+          </button>
         </div>
       </section>
     </div>
