@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { nextCookies } from "better-auth/next-js";
@@ -101,6 +102,104 @@ const baseAuthOptions = {
     session: {
       create: {
         before: async (session, ctx) => {
+          // OAuth 2FA enforcement: if a session is being created via the OAuth
+          // callback (/callback/:provider or /oauth2/callback/:provider) for a
+          // user that already has TOTP enabled, abort the session creation and
+          // redirect to /two-factor with a fresh challenge cookie. better-auth's
+          // twoFactor plugin only hooks /sign-in/email, so without this hook
+          // Google/GitHub OAuth would silently bypass 2FA.
+          //
+          // The email-login path is unaffected (path doesn't start with /callback/)
+          // and the post-verifyTotp session creation is unaffected (its path is
+          // /two-factor/verify-totp).
+          const ctxPath = (ctx as { path?: string } | null)?.path;
+          const ctxFull = ctx as unknown as
+            | {
+                path?: string;
+                context?: {
+                  internalAdapter?: {
+                    findUserById: (
+                      id: string
+                    ) => Promise<{ id: string; twoFactorEnabled?: boolean } | null>;
+                    createVerificationValue: (data: {
+                      value: string;
+                      identifier: string;
+                      expiresAt: Date;
+                    }) => Promise<unknown>;
+                  };
+                  createAuthCookie?: (
+                    name: string,
+                    overrides?: Record<string, unknown>
+                  ) => { name: string; attributes: Record<string, unknown> };
+                  secret?: string;
+                };
+                setSignedCookie?: (
+                  name: string,
+                  value: string,
+                  secret: string,
+                  attrs: Record<string, unknown>
+                ) => Promise<void>;
+                setCookie?: (
+                  name: string,
+                  value: string,
+                  attrs: Record<string, unknown>
+                ) => void;
+                redirect?: (url: string) => Error;
+              }
+            | null;
+          const isOauthCallback =
+            typeof ctxPath === "string" &&
+            (ctxPath.startsWith("/callback/") || ctxPath.startsWith("/oauth2/callback/"));
+          if (
+            isOauthCallback &&
+            ctxFull?.context?.internalAdapter &&
+            ctxFull.context.createAuthCookie &&
+            ctxFull.context.secret &&
+            ctxFull.setSignedCookie &&
+            ctxFull.setCookie &&
+            ctxFull.redirect
+          ) {
+            const user = await ctxFull.context.internalAdapter.findUserById(
+              String(session.userId ?? "")
+            );
+            if (user?.twoFactorEnabled === true) {
+              const maxAge = 3 * 60;
+              const twoFactorCookieAttrs = ctxFull.context.createAuthCookie(
+                "two_factor",
+                { maxAge }
+              );
+              const identifier = `2fa-${crypto.randomBytes(15).toString("hex")}`;
+              await ctxFull.context.internalAdapter.createVerificationValue({
+                value: String(user.id),
+                identifier,
+                expiresAt: new Date(Date.now() + maxAge * 1000)
+              });
+              await ctxFull.setSignedCookie(
+                twoFactorCookieAttrs.name,
+                identifier,
+                ctxFull.context.secret,
+                twoFactorCookieAttrs.attributes
+              );
+              // Defense-in-depth: expire trust_device cookies on the OAuth
+              // response so any pre-existing trust cookie in the browser is
+              // dropped — same protection the email-login route applies.
+              ctxFull.setCookie("better-auth.trust_device", "", {
+                maxAge: 0,
+                path: "/",
+                httpOnly: true,
+                sameSite: "lax"
+              });
+              ctxFull.setCookie("__Secure-better-auth.trust_device", "", {
+                maxAge: 0,
+                path: "/",
+                httpOnly: true,
+                sameSite: "lax",
+                secure: true
+              });
+              throw ctxFull.redirect("/two-factor");
+            }
+          }
+
           const context = (ctx as { context?: { headers?: Headers } } | null)?.context;
           let ipAddress = typeof session.ipAddress === "string" && session.ipAddress ? session.ipAddress : "127.0.0.1";
           let userAgent = session.userAgent ?? undefined;

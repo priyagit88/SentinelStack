@@ -11,7 +11,6 @@ export function TwoFactorChallenge() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("totp");
   const [code, setCode] = useState("");
-  const [trustDevice, setTrustDevice] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -21,8 +20,8 @@ export function TwoFactorChallenge() {
     setLoading(true);
     const { error: err } =
       mode === "totp"
-        ? await authClient.twoFactor.verifyTotp({ code, trustDevice })
-        : await authClient.twoFactor.verifyBackupCode({ code, trustDevice });
+        ? await authClient.twoFactor.verifyTotp({ code, trustDevice: false })
+        : await authClient.twoFactor.verifyBackupCode({ code, trustDevice: false });
     setLoading(false);
     if (err) {
       setError(err.message ?? "Invalid code. Try again.");
@@ -48,16 +47,6 @@ export function TwoFactorChallenge() {
           }
           className="rounded-md border border-cyan-200/20 bg-slate-950 px-4 py-3 text-center text-xl tracking-[0.4em] text-white outline-none focus:border-cyan-300"
         />
-      </label>
-
-      <label className="flex items-center gap-2 text-xs text-slate-400">
-        <input
-          type="checkbox"
-          checked={trustDevice}
-          onChange={(e) => setTrustDevice(e.target.checked)}
-          className="h-4 w-4 rounded border-slate-700 bg-slate-900"
-        />
-        Trust this device for 60 days
       </label>
 
       {error && <p className="text-sm text-red-300">{error}</p>}
