@@ -94,7 +94,7 @@ function VerifyOtpContent() {
   };
 
   useEffect(() => {
-    if (code.join("").length === 6) {
+    if (email && code.join("").length === 6) {
       void submitOtp();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

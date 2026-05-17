@@ -1,10 +1,33 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
-import { Turnstile } from "@/components/turnstile";
+
+declare global {
+  interface Window {
+    grecaptcha?: {
+      ready: (cb: () => void) => void;
+      execute: (siteKey: string, opts: { action: string }) => Promise<string>;
+    };
+  }
+}
+
+async function executeRecaptcha(action: string): Promise<string> {
+  const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+  if (!siteKey || typeof window === "undefined" || !window.grecaptcha) return "";
+  return new Promise<string>((resolve) => {
+    window.grecaptcha!.ready(async () => {
+      try {
+        const token = await window.grecaptcha!.execute(siteKey, { action });
+        resolve(token);
+      } catch {
+        resolve("");
+      }
+    });
+  });
+}
 
 export function RegisterForm() {
   const router = useRouter();
@@ -12,9 +35,7 @@ export function RegisterForm() {
   const [error, setError] = useState("");
   const [isPending, setPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [captchaToken, setCaptchaToken] = useState("");
-  const handleCaptchaToken = useCallback((token: string) => setCaptchaToken(token), []);
-  const captchaRequired = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
+  const captchaRequired = Boolean(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY);
 
   async function signInWithProvider(provider: "google" | "github") {
     setPending(true);
@@ -25,12 +46,14 @@ export function RegisterForm() {
     event.preventDefault();
     setError("");
 
+    setPending(true);
+
+    const captchaToken = await executeRecaptcha("register");
     if (captchaRequired && !captchaToken) {
-      setError("Please complete the CAPTCHA challenge.");
+      setError("CAPTCHA verification failed. Please try again.");
+      setPending(false);
       return;
     }
-
-    setPending(true);
 
     const form = new FormData(event.currentTarget);
     const focusToSubmitMs = firstFocusAt.current ? Math.round(performance.now() - firstFocusAt.current) : 0;
@@ -118,10 +141,9 @@ export function RegisterForm() {
           </button>
         </div>
       </label>
-      <Turnstile onToken={handleCaptchaToken} action="register" />
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
       <button
-        disabled={isPending || (captchaRequired && !captchaToken)}
+        disabled={isPending}
         className="mt-2 inline-flex items-center justify-center gap-2 rounded-md bg-cyan-300 px-5 py-3 text-sm font-semibold text-slate-950 disabled:opacity-60"
       >
         {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
