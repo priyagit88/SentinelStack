@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { APIError } from "better-auth/api";
 import { auth } from "@/lib/auth";
 import { recordSecurityEvent, getClientIp } from "@/lib/security";
-import { verifyTurnstile } from "@/lib/turnstile";
+import { verifyCaptcha } from "@/lib/captcha";
 
 export const runtime = "nodejs";
 
@@ -78,31 +78,32 @@ function expireTrustDeviceCookies(response: Response): Response {
 }
 
 export async function POST(request: NextRequest) {
-  const body = (await request.json()) as {
+  let body: {
     email?: string;
     password?: string;
     rememberMe?: boolean;
     captchaToken?: string;
   };
+  try {
+    body = (await request.json()) as typeof body;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON request body." }, { status: 400 });
+  }
   const ip = getClientIp(request.headers);
 
-  const captcha = await verifyTurnstile(body.captchaToken, ip);
-  if (!captcha.ok) {
+  const captchaOk = await verifyCaptcha(body.captchaToken);
+  if (!captchaOk) {
     await recordSecurityEvent({
       type: "CAPTCHA_FAILED",
       severity: "HIGH",
-      details: `Login blocked: ${captcha.reason ?? "CAPTCHA challenge failed"}.`,
+      details: "Login blocked: reCAPTCHA verification failed or score below threshold.",
       ip,
-      metadata: {
-        email: body.email,
-        errorCodes: captcha.errorCodes,
-        endpoint: "login"
-      },
+      metadata: { email: body.email, endpoint: "login" },
       runAi: false
     });
     return NextResponse.json(
       { error: "CAPTCHA verification failed. Please try again." },
-      { status: 400 }
+      { status: 403 }
     );
   }
 

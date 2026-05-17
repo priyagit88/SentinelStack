@@ -128,7 +128,7 @@ export function ProfileDashboard() {
       if (passwordForm.step === "initial") {
         // Step 1: Send OTP
         const { error: otpError } = await authClient.emailOtp.sendVerificationOtp({
-          email: data.user.email,
+          email: data?.user.email ?? "",
           type: "email-verification"
         });
         if (otpError) throw otpError;
@@ -142,7 +142,7 @@ export function ProfileDashboard() {
       
       // Verify OTP first
       const verifyRes = await client.emailOtp.verifyEmail({
-        email: data.user.email,
+        email: data?.user.email ?? "",
         otp: passwordForm.otp
       });
       if (verifyRes?.error) throw verifyRes.error;

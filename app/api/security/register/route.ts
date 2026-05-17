@@ -4,12 +4,12 @@ import { auth } from "@/lib/auth";
 import { connectMongoose } from "@/lib/db";
 import { User } from "@/lib/models/user";
 import { getClientIp, recordSecurityEvent } from "@/lib/security";
-import { verifyTurnstile } from "@/lib/turnstile";
+import { verifyCaptcha } from "@/lib/captcha";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
-  const body = (await request.json()) as {
+  let body: {
     name?: string;
     email?: string;
     password?: string;
@@ -17,6 +17,11 @@ export async function POST(request: NextRequest) {
     focusToSubmitMs?: number;
     captchaToken?: string;
   };
+  try {
+    body = (await request.json()) as typeof body;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON request body." }, { status: 400 });
+  }
   const ip = getClientIp(request.headers);
 
   if (body.website?.trim()) {
@@ -36,23 +41,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true }, { status: 200 });
   }
 
-  const captcha = await verifyTurnstile(body.captchaToken, ip);
-  if (!captcha.ok) {
+  const captchaOk = await verifyCaptcha(body.captchaToken);
+  if (!captchaOk) {
     await recordSecurityEvent({
       type: "CAPTCHA_FAILED",
       severity: "HIGH",
-      details: `Registration blocked: ${captcha.reason ?? "CAPTCHA challenge failed"}.`,
+      details: "Registration blocked: reCAPTCHA verification failed or score below threshold.",
       ip,
       metadata: {
         email: body.email,
-        errorCodes: captcha.errorCodes,
         endpoint: "register"
       },
       runAi: false
     });
     return NextResponse.json(
       { error: "CAPTCHA verification failed. Please try again." },
-      { status: 400 }
+      { status: 403 }
     );
   }
 
@@ -88,6 +92,25 @@ export async function POST(request: NextRequest) {
       headers: request.headers,
       asResponse: true
     });
+
+    // Normalize better-auth's error format ({ message, code }) into { error }
+    // so the register form can display a real reason instead of a generic fallback.
+    if (!response.ok) {
+      let normalizedMessage = "Unable to create account.";
+      try {
+        const errBody = (await response.clone().json()) as
+          | { message?: string; error?: string; code?: string }
+          | null;
+        normalizedMessage =
+          errBody?.error ?? errBody?.message ?? normalizedMessage;
+      } catch {
+        // body wasn't JSON — keep fallback
+      }
+      return NextResponse.json(
+        { error: normalizedMessage },
+        { status: response.status }
+      );
+    }
 
     if (automated && body.email) {
       await connectMongoose();

@@ -39,16 +39,21 @@ export async function GET() {
   return NextResponse.json({
     sessions: sessions
       .map((session) => {
+        let location:
+          | { lat?: number; lon?: number; city?: string; country?: string }
+          | null
+          | undefined = session.location;
+
         if (typeof session.location === "string") {
           try {
-            session.location = JSON.parse(session.location);
+            location = JSON.parse(session.location) as typeof location;
           } catch (e) {
-            session.location = null;
+            location = null;
           }
         }
-        return session;
+        return { ...session, location };
       })
-      .filter((session) => session.location?.lat && session.location?.lon)
+      .filter((session) => session.location?.lat != null && session.location?.lon != null)
       .map((session) => {
         const user = userById.get(String(session.userId));
         return {

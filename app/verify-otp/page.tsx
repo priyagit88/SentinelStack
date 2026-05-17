@@ -24,15 +24,6 @@ function VerifyOtpContent() {
     useRef<HTMLInputElement>(null),
   ];
 
-  if (!email) {
-    return (
-      <div className="text-center text-slate-300">
-        <p>No email provided.</p>
-        <button onClick={() => router.push("/register")} className="mt-4 rounded bg-slate-800 px-4 py-2">Go back</button>
-      </div>
-    );
-  }
-
   const handleInput = (index: number, value: string) => {
     if (!/^[0-9]*$/.test(value)) return;
     
@@ -103,11 +94,20 @@ function VerifyOtpContent() {
   };
 
   useEffect(() => {
-    if (code.join("").length === 6) {
+    if (email && code.join("").length === 6) {
       void submitOtp();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
+
+  if (!email) {
+    return (
+      <div className="text-center text-slate-300">
+        <p>No email provided.</p>
+        <button onClick={() => router.push("/register")} className="mt-4 rounded bg-slate-800 px-4 py-2">Go back</button>
+      </div>
+    );
+  }
 
   if (success) {
     return (
@@ -128,7 +128,7 @@ function VerifyOtpContent() {
       </div>
       <h1 className="mb-2 text-2xl font-bold tracking-tight text-white">Enter Passcode</h1>
       <p className="mb-8 text-sm text-slate-400">
-        We've sent a 6-digit code to <span className="font-semibold text-white">{email}</span>.
+        We&apos;ve sent a 6-digit code to <span className="font-semibold text-white">{email}</span>.
       </p>
 
       {error && (
