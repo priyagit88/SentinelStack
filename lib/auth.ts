@@ -23,10 +23,59 @@ const db = client.db();
 
 const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
 
+// AUTH FIX: explicit baseURL drives the OAuth redirect_uri sent to Google/GitHub.
+// Must equal the value registered in those providers' admin consoles.
+// In Vercel production this MUST be set to https://sentinel-stack-seven.vercel.app.
+const isProduction = process.env.NODE_ENV === "production";
+const baseURL = process.env.BETTER_AUTH_URL || "http://localhost:3000";
+
+// AUTH FIX: only register a social provider when both creds are present.
+// Avoids better-auth registering Google/GitHub with empty strings, which
+// causes confusing "missing client_id" failures at the provider.
+const socialProviders: {
+  github?: { clientId: string; clientSecret: string };
+  google?: { clientId: string; clientSecret: string };
+} = {};
+if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
+  socialProviders.github = {
+    clientId: process.env.GITHUB_CLIENT_ID,
+    clientSecret: process.env.GITHUB_CLIENT_SECRET
+  };
+}
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  socialProviders.google = {
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET
+  };
+}
+
 const baseAuthOptions = {
   database: mongodbAdapter(db, {
     client
   }),
+  baseURL,
+  // AUTH FIX: trustedOrigins safeguards /api/auth/* against requests from
+  // unexpected origins. Includes BETTER_AUTH_URL plus the production URL
+  // explicitly so preview deployments and direct host overrides still work.
+  trustedOrigins: [
+    baseURL,
+    "https://sentinel-stack-seven.vercel.app",
+    "http://localhost:3000"
+  ].filter((v, i, arr) => Boolean(v) && arr.indexOf(v) === i) as string[],
+  // AUTH FIX: harden every cookie better-auth issues (session, CSRF, OAuth
+  // state, 2fa_challenge). HttpOnly blocks JS access (XSS mitigation), Secure
+  // forces HTTPS in production, SameSite=Lax keeps OAuth working — Strict
+  // would drop the state cookie on the Google/GitHub return hop and break
+  // social login entirely.
+  advanced: {
+    useSecureCookies: isProduction,
+    defaultCookieAttributes: {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "lax" as const,
+      path: "/"
+    }
+  },
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: true
@@ -51,16 +100,7 @@ const baseAuthOptions = {
       }
     }
   },
-  socialProviders: {
-    github: {
-      clientId: process.env.GITHUB_CLIENT_ID || "",
-      clientSecret: process.env.GITHUB_CLIENT_SECRET || ""
-    },
-    google: {
-      clientId: process.env.GOOGLE_CLIENT_ID || "",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || ""
-    }
-  },
+  socialProviders,
   account: {
     accountLinking: {
       enabled: true,

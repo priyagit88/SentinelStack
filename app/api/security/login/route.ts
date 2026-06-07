@@ -91,14 +91,23 @@ export async function POST(request: NextRequest) {
   }
   const ip = getClientIp(request.headers);
 
-  const captchaOk = await verifyCaptcha(body.captchaToken);
-  if (!captchaOk) {
+  // CAPTCHA FIX: structured result lets us log why verification failed
+  // (low score, invalid host, missing token, etc.) into security events.
+  const captcha = await verifyCaptcha(body.captchaToken);
+  if (!captcha.ok) {
     await recordSecurityEvent({
       type: "CAPTCHA_FAILED",
       severity: "HIGH",
-      details: "Login blocked: reCAPTCHA verification failed or score below threshold.",
+      details: `Login blocked: reCAPTCHA failed (reason=${captcha.reason ?? "unknown"}, score=${captcha.score ?? "n/a"}).`,
       ip,
-      metadata: { email: body.email, endpoint: "login" },
+      metadata: {
+        email: body.email,
+        endpoint: "login",
+        captchaReason: captcha.reason,
+        captchaScore: captcha.score,
+        captchaAction: captcha.action,
+        captchaErrorCodes: captcha.errorCodes
+      },
       runAi: false
     });
     return NextResponse.json(

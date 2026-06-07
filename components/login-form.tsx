@@ -34,6 +34,9 @@ export function LoginForm() {
   const [error, setError] = useState("");
   const [isPending, setPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  // CAPTCHA FIX: mirror RegisterForm — only enforce CAPTCHA gate when the
+  // site key is configured. Avoids confusing dev errors when key is absent.
+  const captchaRequired = Boolean(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY);
 
   async function signInWithProvider(provider: "google" | "github") {
     setPending(true);
@@ -46,6 +49,14 @@ export function LoginForm() {
     setPending(true);
 
     const captchaToken = await executeRecaptcha("login");
+    // CAPTCHA FIX: fail fast with a clear UX message when grecaptcha didn't
+    // load (cold page, blocked by network, script error). Beats the generic
+    // 403 the server would otherwise return.
+    if (captchaRequired && !captchaToken) {
+      setError("CAPTCHA failed to load. Please refresh and try again.");
+      setPending(false);
+      return;
+    }
     const form = new FormData(event.currentTarget);
 
     const response = await fetch("/api/security/login", {
