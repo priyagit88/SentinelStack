@@ -18,6 +18,16 @@ import { User } from "@/lib/models/user";
 import { connectMongoose } from "@/lib/db";
 import mongoose from "mongoose";
 
+if (process.env.BETTER_AUTH_URL) {
+  let url = process.env.BETTER_AUTH_URL.trim();
+  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    url = `https://${url}`;
+  }
+  process.env.BETTER_AUTH_URL = url;
+} else {
+  process.env.BETTER_AUTH_URL = "http://localhost:3000";
+}
+
 const client = new MongoClient(mongoUri);
 const db = client.db();
 
