@@ -18,11 +18,17 @@ async function executeRecaptcha(action: string): Promise<string> {
   const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
   if (!siteKey || typeof window === "undefined" || !window.grecaptcha) return "";
   return new Promise<string>((resolve) => {
+    const timer = setTimeout(() => {
+      resolve("");
+    }, 4000);
+
     window.grecaptcha!.ready(async () => {
       try {
         const token = await window.grecaptcha!.execute(siteKey, { action });
+        clearTimeout(timer);
         resolve(token);
       } catch {
+        clearTimeout(timer);
         resolve("");
       }
     });
