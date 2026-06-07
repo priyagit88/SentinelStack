@@ -66,8 +66,14 @@ export function LoginForm() {
     }
 
     const result = (await response.json().catch(() => null)) as
-      | { twoFactorRedirect?: boolean }
+      | { twoFactorRedirect?: boolean; deceptionMode?: boolean }
       | null;
+
+    if (result?.deceptionMode) {
+      router.push("/honeypot");
+      router.refresh();
+      return;
+    }
 
     if (result?.twoFactorRedirect) {
       router.push("/two-factor");

@@ -77,11 +77,29 @@ export function middleware(request: NextRequest) {
     secure: true
   });
 
+  // ── Deception Mode Protection ──────────────────────────────────────────
+  const isHoneyPath = request.nextUrl.pathname.startsWith("/honeypot") || 
+                      request.nextUrl.pathname.startsWith("/api/honey");
+  
+  if (isHoneyPath) {
+    const honeyToken = request.cookies.get("sentinel-deception-mode")?.value;
+    if (!honeyToken) {
+      // Attacker trying to deep-link into honeypot without a token
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+    // Allow honeypot access
+    return response;
+  }
+
   return response;
 }
 
 export const config = {
-  // Only run on auth-relevant API paths. Page routes, static assets, and
-  // unrelated API endpoints are not affected.
-  matcher: ["/api/auth/:path*", "/api/security/:path*"]
+  // Run on auth-relevant paths and honeypot routes
+  matcher: [
+    "/api/auth/:path*", 
+    "/api/security/:path*",
+    "/honeypot/:path*",
+    "/api/honey/:path*"
+  ]
 };
