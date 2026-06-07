@@ -41,16 +41,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true }, { status: 200 });
   }
 
-  const captchaOk = await verifyCaptcha(body.captchaToken);
-  if (!captchaOk) {
+  // CAPTCHA FIX: structured result enables production diagnostics in security logs.
+  const captcha = await verifyCaptcha(body.captchaToken);
+  if (!captcha.ok) {
     await recordSecurityEvent({
       type: "CAPTCHA_FAILED",
       severity: "HIGH",
-      details: "Registration blocked: reCAPTCHA verification failed or score below threshold.",
+      details: `Registration blocked: reCAPTCHA failed (reason=${captcha.reason ?? "unknown"}, score=${captcha.score ?? "n/a"}).`,
       ip,
       metadata: {
         email: body.email,
-        endpoint: "register"
+        endpoint: "register",
+        captchaReason: captcha.reason,
+        captchaScore: captcha.score,
+        captchaAction: captcha.action,
+        captchaErrorCodes: captcha.errorCodes
       },
       runAi: false
     });
