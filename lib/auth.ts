@@ -27,6 +27,7 @@ const baseAuthOptions = {
   database: mongodbAdapter(db, {
     client
   }),
+  baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3000",
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: true
@@ -36,7 +37,7 @@ const baseAuthOptions = {
     sendVerificationEmail: async ({ user, url }) => {
       try {
         await resend.emails.send({
-          from: "SentinelStack Security <onboarding@resend.dev>",
+          from: process.env.EMAIL_FROM || "SentinelStack Security <onboarding@resend.dev>",
           to: user.email,
           subject: "Verify your SentinelStack Account",
           html: `<div style="background:#0f172a;color:#fff;padding:20px;font-family:sans-serif;text-align:center;">
@@ -379,7 +380,7 @@ const authOptions = {
       sendMagicLink: async ({ email, url }) => {
         try {
           await resend.emails.send({
-            from: "SentinelStack Security <onboarding@resend.dev>",
+            from: process.env.EMAIL_FROM || "SentinelStack Security <onboarding@resend.dev>",
             to: email,
             subject: "Your SentinelStack Magic Link",
             html: `<div style="background:#0f172a;color:#fff;padding:20px;font-family:sans-serif;text-align:center;">
@@ -403,7 +404,7 @@ const authOptions = {
       async sendVerificationOTP({ email, otp }) {
         try {
           await resend.emails.send({
-            from: "SentinelStack Security <onboarding@resend.dev>",
+            from: process.env.EMAIL_FROM || "SentinelStack Security <onboarding@resend.dev>",
             to: email,
             subject: "Your SentinelStack Security Passcode",
             html: `<div style="background:#0f172a;color:#fff;padding:20px;font-family:sans-serif;text-align:center;">
