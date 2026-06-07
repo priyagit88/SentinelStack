@@ -40,3 +40,8 @@ input {
     box-shadow: 0 0 22px rgba(248, 113, 113, 0.4);
   }
 }
+
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}

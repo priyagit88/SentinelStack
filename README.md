@@ -31,7 +31,7 @@ This project pins `better-auth` to `1.4.0` for compatibility with the Node versi
 Create a `.env.local` file from the example:
 
 ```bash
-cp .env.example .env.local
+cp .env.local
 ```
 
 Then update the values:

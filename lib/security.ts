@@ -196,7 +196,7 @@ export async function recordSecurityEvent(args: {
     aiAnalysis: null
   });
 
-  if (args.runAi && (args.severity === "HIGH" || args.severity === "CRITICAL")) {
+  if (args.runAi && process.env.GEMINI_API_KEY) {
     const aiAnalysis = await analyzeThreatWithGemini({
       event: {
         type: args.type,

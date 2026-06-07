@@ -18,6 +18,16 @@ import { User } from "@/lib/models/user";
 import { connectMongoose } from "@/lib/db";
 import mongoose from "mongoose";
 
+if (process.env.BETTER_AUTH_URL) {
+  let url = process.env.BETTER_AUTH_URL.trim();
+  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    url = `https://${url}`;
+  }
+  process.env.BETTER_AUTH_URL = url;
+} else {
+  process.env.BETTER_AUTH_URL = "http://localhost:3000";
+}
+
 const client = new MongoClient(mongoUri);
 const db = client.db();
 
@@ -85,7 +95,7 @@ const baseAuthOptions = {
     sendVerificationEmail: async ({ user, url }) => {
       try {
         await resend.emails.send({
-          from: "SentinelStack Security <onboarding@resend.dev>",
+          from: process.env.EMAIL_FROM || "SentinelStack Security <onboarding@resend.dev>",
           to: user.email,
           subject: "Verify your SentinelStack Account",
           html: `<div style="background:#0f172a;color:#fff;padding:20px;font-family:sans-serif;text-align:center;">
@@ -123,6 +133,12 @@ const baseAuthOptions = {
         required: false,
         defaultValue: 0,
         input: false
+      },
+      isBlocked: {
+        type: "boolean",
+        required: false,
+        defaultValue: false,
+        input: false
       }
     }
   },
@@ -142,6 +158,18 @@ const baseAuthOptions = {
     session: {
       create: {
         before: async (session, ctx) => {
+          await connectMongoose();
+          const blockedUser = await User.findOne({
+            $or: [
+              { id: session.userId },
+              { _id: mongoose.Types.ObjectId.isValid(String(session.userId)) ? new mongoose.Types.ObjectId(String(session.userId)) : null }
+            ]
+          }).select("isBlocked").lean<{ isBlocked?: boolean } | null>();
+
+          if (blockedUser?.isBlocked) {
+            throw new Error("Your account has been blocked by an administrator for security violations.");
+          }
+
           // OAuth 2FA enforcement: if a session is being created via the OAuth
           // callback (/callback/:provider or /oauth2/callback/:provider) for a
           // user that already has TOTP enabled, abort the session creation and
@@ -222,7 +250,7 @@ const baseAuthOptions = {
               );
               // Defense-in-depth: expire trust_device cookies on the OAuth
               // response so any pre-existing trust cookie in the browser is
-              // dropped — same protection the email-login route applies.
+              // dropped; same protection the email-login route applies.
               ctxFull.setCookie("better-auth.trust_device", "", {
                 maxAge: 0,
                 path: "/",
@@ -308,7 +336,7 @@ const baseAuthOptions = {
             }
           };
         },
-        after: async (session) => {
+        after: async (session: any) => {
           await recordSecurityEvent({
             userId: String(session.userId),
             type: "LOGIN_SUCCESS",
@@ -318,25 +346,27 @@ const baseAuthOptions = {
             metadata: {
               device: userAgentToDevice(session.userAgent ?? undefined),
               userAgent: session.userAgent
-            }
+            },
+            runAi: true
           });
         }
       },
       delete: {
-        after: async (session) => {
+        after: async (session: any) => {
           await recordSecurityEvent({
             userId: String(session.userId),
             type: "SESSION_REVOKED",
             severity: "LOW",
             details: `Session revoked for ${session.ipAddress}.`,
-            ip: session.ipAddress ?? "0.0.0.0"
+            ip: session.ipAddress ?? "0.0.0.0",
+            runAi: true
           });
         }
       }
     },
     user: {
       create: {
-        after: async (user) => {
+        after: async (user: any) => {
           await recordSecurityEvent({
             userId: String(user.id),
             type: "REGISTER_SUCCESS",
@@ -346,12 +376,13 @@ const baseAuthOptions = {
             metadata: {
               email: user.email,
               name: user.name
-            }
+            },
+            runAi: true
           });
         }
       },
       delete: {
-        after: async (user) => {
+        after: async (user: any) => {
           await connectMongoose();
           const userIdStr = String(user.id);
           const userIdObj = mongoose.Types.ObjectId.isValid(userIdStr) 
@@ -398,7 +429,7 @@ const authOptions = {
       sendMagicLink: async ({ email, url }) => {
         try {
           await resend.emails.send({
-            from: "SentinelStack Security <onboarding@resend.dev>",
+            from: process.env.EMAIL_FROM || "SentinelStack Security <onboarding@resend.dev>",
             to: email,
             subject: "Your SentinelStack Magic Link",
             html: `<div style="background:#0f172a;color:#fff;padding:20px;font-family:sans-serif;text-align:center;">
@@ -422,7 +453,7 @@ const authOptions = {
       async sendVerificationOTP({ email, otp }) {
         try {
           await resend.emails.send({
-            from: "SentinelStack Security <onboarding@resend.dev>",
+            from: process.env.EMAIL_FROM || "SentinelStack Security <onboarding@resend.dev>",
             to: email,
             subject: "Your SentinelStack Security Passcode",
             html: `<div style="background:#0f172a;color:#fff;padding:20px;font-family:sans-serif;text-align:center;">

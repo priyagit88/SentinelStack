@@ -9,6 +9,7 @@ export type SentinelUser = {
   image?: string | null;
   isFlagged: boolean;
   riskScore: number;
+  isBlocked: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 };
@@ -21,7 +22,8 @@ const UserSchema = new Schema<SentinelUser>(
     emailVerified: { type: Boolean, default: false },
     image: { type: String, default: null },
     isFlagged: { type: Boolean, default: false },
-    riskScore: { type: Number, default: 0 }
+    riskScore: { type: Number, default: 0 },
+    isBlocked: { type: Boolean, default: false }
   },
   {
     collection: "user",

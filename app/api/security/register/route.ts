@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
         website: body.website,
         focusToSubmitMs: body.focusToSubmitMs
       },
-      runAi: false
+      runAi: true
     });
 
     return NextResponse.json({ ok: true }, { status: 200 });
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
           email: body.email,
           focusToSubmitMs: body.focusToSubmitMs
         },
-        runAi: false
+        runAi: true
       });
     }
 
