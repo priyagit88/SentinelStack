@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, LogIn, Eye, EyeOff } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
@@ -16,13 +16,45 @@ declare global {
 
 async function executeRecaptcha(action: string): Promise<string> {
   const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
-  if (!siteKey || typeof window === "undefined" || !window.grecaptcha) return "";
+  if (!siteKey || typeof window === "undefined") return "";
+
+  // Wait for window.grecaptcha to be loaded and initialized if it isn't yet
+  const getGrecaptcha = async (): Promise<any> => {
+    if (window.grecaptcha) return window.grecaptcha;
+    return new Promise((resolve) => {
+      let attempts = 0;
+      const interval = setInterval(() => {
+        attempts++;
+        if (window.grecaptcha) {
+          clearInterval(interval);
+          resolve(window.grecaptcha);
+        } else if (attempts >= 40) { // Timeout after 4 seconds
+          clearInterval(interval);
+          resolve(undefined);
+        }
+      }, 100);
+    });
+  };
+
+  const grecaptcha = await getGrecaptcha();
+  if (!grecaptcha) {
+    console.error("reCAPTCHA script failed to load on the window object.");
+    return "";
+  }
+
   return new Promise<string>((resolve) => {
-    window.grecaptcha!.ready(async () => {
+    const timer = setTimeout(() => {
+      resolve("");
+    }, 4000);
+
+    grecaptcha.ready(async () => {
       try {
-        const token = await window.grecaptcha!.execute(siteKey, { action });
+        const token = await grecaptcha.execute(siteKey, { action });
+        clearTimeout(timer);
         resolve(token);
-      } catch {
+      } catch (err) {
+        console.error("reCAPTCHA execution failed:", err);
+        clearTimeout(timer);
         resolve("");
       }
     });
@@ -31,6 +63,7 @@ async function executeRecaptcha(action: string): Promise<string> {
 
 export function LoginForm() {
   const router = useRouter();
+  const firstFocusAt = useRef<number | null>(null);
   const [error, setError] = useState("");
   const [isPending, setPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -42,11 +75,13 @@ export function LoginForm() {
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const formElement = event.currentTarget;
     setError("");
     setPending(true);
 
     const captchaToken = await executeRecaptcha("login");
-    const form = new FormData(event.currentTarget);
+    const form = new FormData(formElement);
+    const focusToSubmitMs = firstFocusAt.current ? Math.round(performance.now() - firstFocusAt.current) : 0;
 
     const response = await fetch("/api/security/login", {
       method: "POST",
@@ -54,6 +89,7 @@ export function LoginForm() {
       body: JSON.stringify({
         email: String(form.get("email") ?? ""),
         password: String(form.get("password") ?? ""),
+        focusToSubmitMs,
         captchaToken
       })
     });
@@ -93,6 +129,9 @@ export function LoginForm() {
           name="email"
           type="email"
           required
+          onFocus={() => {
+            if (firstFocusAt.current === null) firstFocusAt.current = performance.now();
+          }}
           className="rounded-md border border-cyan-200/20 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-300"
         />
       </label>
@@ -103,6 +142,9 @@ export function LoginForm() {
             name="password"
             type={showPassword ? "text" : "password"}
             required
+            onFocus={() => {
+              if (firstFocusAt.current === null) firstFocusAt.current = performance.now();
+            }}
             className="w-full rounded-md border border-cyan-200/20 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-300 pr-10"
           />
           <button
