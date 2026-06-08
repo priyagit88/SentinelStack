@@ -62,6 +62,30 @@ type BlockedUser = {
   updatedAt: string;
 };
 
+type HoneyLogEntry = {
+  id: string;
+  sessionToken: string;
+  userEmail: string;
+  ipAddress: string;
+  userAgent: string | null;
+  location: { lat?: number; lon?: number; city?: string; country?: string } | null;
+  action: string;
+  payload: Record<string, unknown>;
+  aiConfidenceScore: number | null;
+  aiSummary: string | null;
+  timestamp: string;
+};
+
+type HoneySession = {
+  sessionToken: string;
+  email: string;
+  ip: string;
+  actions: number;
+  firstSeen: string;
+  lastSeen: string;
+  confidence: number | null;
+};
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getEventIcon(type: string) {
@@ -118,6 +142,10 @@ export function AdminCommandCenter() {
   const [typeFilter, setTypeFilter]         = useState("ALL");
   const [severityFilter, setSeverityFilter] = useState("ALL");
   const [timeFilter, setTimeFilter]         = useState("ALL"); // ALL, HOUR, DAY
+  const [honeyLogs, setHoneyLogs]           = useState<HoneyLogEntry[]>([]);
+  const [honeySessions, setHoneySessions]   = useState<HoneySession[]>([]);
+  const [loadingHoney, setLoadingHoney]     = useState(false);
+  const [activeTab, setActiveTab]           = useState<"realtime" | "deception">("realtime");
   const feedRef                             = useRef<HTMLDivElement>(null);
   const esRef                               = useRef<EventSource | null>(null);
   const initialised                         = useRef(false);
@@ -187,6 +215,29 @@ export function AdminCommandCenter() {
       esRef.current?.close();
     };
   }, []);
+
+  // ── Fetch Deception Intel ───────────────────────────────────────────────
+  useEffect(() => {
+    async function fetchHoney() {
+      setLoadingHoney(true);
+      try {
+        const res = await fetch("/api/security/admin/honeylogs");
+        if (res.ok) {
+          const data = await res.json();
+          setHoneyLogs(data.logs);
+          setHoneySessions(data.sessions);
+        }
+      } catch (err) {
+        console.error("Failed to fetch deception logs");
+      } finally {
+        setLoadingHoney(false);
+      }
+    }
+
+    if (activeTab === "deception") {
+      fetchHoney();
+    }
+  }, [activeTab]);
 
   // ── Globe data ──────────────────────────────────────────────────────────
   const points = sessions
@@ -267,8 +318,35 @@ export function AdminCommandCenter() {
         <Metric title="AI Reviewed"     value={aiCount}         icon={BrainCircuit} color="violet" />
       </section>
 
-      {/* ── Globe + Feed ── */}
-      <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+      {/* ── Tab Navigation ── */}
+      <div className="flex border-b border-cyan-300/10">
+        <button
+          onClick={() => setActiveTab("realtime")}
+          className={`flex items-center gap-2 px-6 py-3 text-sm font-semibold transition-all ${
+            activeTab === "realtime"
+              ? "border-b-2 border-cyan-400 text-cyan-400"
+              : "text-slate-500 hover:text-slate-300"
+          }`}
+        >
+          <RadioTower className="h-4 w-4" />
+          Real-time Intelligence
+        </button>
+        <button
+          onClick={() => setActiveTab("deception")}
+          className={`flex items-center gap-2 px-6 py-3 text-sm font-semibold transition-all ${
+            activeTab === "deception"
+              ? "border-b-2 border-cyan-400 text-cyan-400"
+              : "text-slate-500 hover:text-slate-300"
+          }`}
+        >
+          <Fingerprint className="h-4 w-4" />
+          Deception Mode Intel
+        </button>
+      </div>
+
+      {/* ── Main Content ── */}
+      {activeTab === "realtime" ? (
+        <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         {/* Globe */}
         <article className="min-h-[560px] overflow-hidden rounded-xl border border-cyan-300/15 bg-slate-950/85 shadow-[0_0_24px_rgba(6,182,212,0.06)]">
           <div className="flex items-center justify-between border-b border-cyan-300/10 px-5 py-4">
@@ -400,6 +478,60 @@ export function AdminCommandCenter() {
           </div>
         </article>
       </section>
+      ) : (
+        <section className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
+          {/* Attacker Sessions */}
+          <article className="flex flex-col rounded-xl border border-cyan-300/15 bg-slate-950/85 shadow-[0_0_24px_rgba(6,182,212,0.06)]">
+            <div className="flex shrink-0 items-center justify-between border-b border-cyan-300/10 px-5 py-4">
+              <h2 className="text-lg font-semibold text-white">Trapped Attackers</h2>
+              <span className="text-xs text-slate-500">{honeySessions.length} active sessions</span>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4" style={{ maxHeight: 620 }}>
+              {loadingHoney ? (
+                <FeedSkeleton />
+              ) : (
+                <div className="grid gap-3">
+                  {honeySessions.length === 0 ? (
+                    <p className="py-12 text-center text-sm text-slate-500">No active deception sessions</p>
+                  ) : (
+                    honeySessions.map(session => (
+                      <AttackerSessionCard key={session.sessionToken} session={session} />
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          </article>
+
+          {/* Live Honey Feed */}
+          <article className="flex flex-col rounded-xl border border-cyan-300/15 bg-slate-950/85 shadow-[0_0_24px_rgba(6,182,212,0.06)]">
+            <div className="flex shrink-0 items-center justify-between border-b border-cyan-300/10 px-5 py-4">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-semibold text-white">Live Honey Feed</h2>
+                <div className="flex items-center gap-1.5 rounded-full bg-cyan-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-cyan-400 ring-1 ring-cyan-400/30">
+                  Capturing
+                </div>
+              </div>
+              <span className="text-xs text-slate-500">{honeyLogs.length} events logged</span>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4" style={{ maxHeight: 620 }}>
+              {loadingHoney ? (
+                <FeedSkeleton />
+              ) : (
+                <div className="grid gap-2.5">
+                  {honeyLogs.length === 0 ? (
+                    <p className="py-12 text-center text-sm text-slate-500">No telemetry captured yet</p>
+                  ) : (
+                    honeyLogs.map(log => (
+                      <HoneyLogCard key={log.id} log={log} />
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          </article>
+        </section>
+      )}
 
       {/* ── Blocked Accounts ── */}
       <section>
@@ -732,5 +864,88 @@ function BlockedUserCard({ user }: { user: BlockedUser }) {
         {unblocking ? "..." : "Unblock"}
       </button>
     </div>
+  );
+}
+
+// ─── Deception Intel Sub-components ──────────────────────────────────────────
+
+function AttackerSessionCard({ session }: { session: HoneySession }) {
+  const [blocking, setBlocking] = useState(false);
+
+  async function handlePromote() {
+    if (!confirm(`Promote interception to full block for ${session.email}?`)) return;
+    setBlocking(true);
+    try {
+      const res = await fetch("/api/security/admin/block", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: session.email })
+      });
+      if (res.ok) alert("User blocked successfully");
+    } catch {
+      alert("Failed to block user");
+    } finally {
+      setBlocking(false);
+    }
+  }
+
+  return (
+    <article className="rounded-lg border border-cyan-300/10 bg-slate-900/60 p-4 ring-1 ring-cyan-300/5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-bold text-white">{session.email}</p>
+          <p className="text-[11px] text-slate-500">{session.ip} • {session.actions} interactions</p>
+        </div>
+        <button
+          onClick={handlePromote}
+          disabled={blocking}
+          className="shrink-0 rounded-md bg-red-500/10 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-red-400 ring-1 ring-red-500/20 transition hover:bg-red-500/20 disabled:opacity-50"
+        >
+          {blocking ? "..." : "Block"}
+        </button>
+      </div>
+      <div className="mt-3 flex items-center justify-between text-[10px] uppercase font-bold tracking-widest">
+        <span className="text-slate-500">AI Confidence:</span>
+        <span className={session.confidence && session.confidence >= 80 ? "text-red-400" : "text-cyan-400"}>
+          {session.confidence ?? "??"}%
+        </span>
+      </div>
+      <div className="mt-1 h-1 w-full rounded-full bg-slate-800">
+        <div 
+          className="h-full rounded-full bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.4)]" 
+          style={{ width: `${Math.min(100, (session.actions / 20) * 100)}%` }}
+        />
+      </div>
+    </article>
+  );
+}
+
+function HoneyLogCard({ log }: { log: HoneyLogEntry }) {
+  return (
+    <article className="rounded-lg border border-cyan-300/5 bg-slate-900/40 p-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Zap className="h-3 w-3 text-cyan-400" />
+          <span className="text-[11px] font-bold uppercase tracking-wider text-white">
+            {log.action.replaceAll("_", " ")}
+          </span>
+        </div>
+        <span className="text-[10px] text-slate-500">
+          {new Date(log.timestamp).toLocaleTimeString()}
+        </span>
+      </div>
+      
+      {Object.keys(log.payload).length > 0 && (
+        <div className="mt-2 rounded bg-slate-950/50 p-2 border border-white/5">
+          <pre className="text-[10px] text-cyan-200/70 overflow-x-auto">
+            {JSON.stringify(log.payload, null, 2)}
+          </pre>
+        </div>
+      )}
+      
+      <p className="mt-2 text-[10px] text-slate-500 font-medium">
+        {log.userEmail} • {log.ipAddress}
+      </p>
+    </article>
   );
 }

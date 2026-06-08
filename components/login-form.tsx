@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, LogIn, Eye, EyeOff } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
@@ -63,6 +63,7 @@ async function executeRecaptcha(action: string): Promise<string> {
 
 export function LoginForm() {
   const router = useRouter();
+  const firstFocusAt = useRef<number | null>(null);
   const [error, setError] = useState("");
   const [isPending, setPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -91,6 +92,7 @@ export function LoginForm() {
       return;
     }
     const form = new FormData(formElement);
+    const focusToSubmitMs = firstFocusAt.current ? Math.round(performance.now() - firstFocusAt.current) : 0;
 
     const response = await fetch("/api/security/login", {
       method: "POST",
@@ -98,6 +100,7 @@ export function LoginForm() {
       body: JSON.stringify({
         email: String(form.get("email") ?? ""),
         password: String(form.get("password") ?? ""),
+        focusToSubmitMs,
         captchaToken
       })
     });
@@ -110,8 +113,14 @@ export function LoginForm() {
     }
 
     const result = (await response.json().catch(() => null)) as
-      | { twoFactorRedirect?: boolean }
+      | { twoFactorRedirect?: boolean; deceptionMode?: boolean }
       | null;
+
+    if (result?.deceptionMode) {
+      router.push("/honeypot");
+      router.refresh();
+      return;
+    }
 
     if (result?.twoFactorRedirect) {
       router.push("/two-factor");
@@ -131,6 +140,9 @@ export function LoginForm() {
           name="email"
           type="email"
           required
+          onFocus={() => {
+            if (firstFocusAt.current === null) firstFocusAt.current = performance.now();
+          }}
           className="rounded-md border border-cyan-200/20 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-300"
         />
       </label>
@@ -141,6 +153,9 @@ export function LoginForm() {
             name="password"
             type={showPassword ? "text" : "password"}
             required
+            onFocus={() => {
+              if (firstFocusAt.current === null) firstFocusAt.current = performance.now();
+            }}
             className="w-full rounded-md border border-cyan-200/20 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-300 pr-10"
           />
           <button
