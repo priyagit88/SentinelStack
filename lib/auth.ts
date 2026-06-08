@@ -94,7 +94,7 @@ const baseAuthOptions = {
     sendOnSignUp: true,
     sendVerificationEmail: async ({ user, url }) => {
       try {
-        await resend.emails.send({
+        const { data, error } = await resend.emails.send({
           from: process.env.EMAIL_FROM || "SentinelStack Security <onboarding@resend.dev>",
           to: user.email,
           subject: "Verify your SentinelStack Account",
@@ -105,8 +105,13 @@ const baseAuthOptions = {
                    <a href="${url}" style="background:#06b6d4;color:#000;padding:12px 24px;text-decoration:none;border-radius:5px;font-weight:bold;">Verify Email</a>
                  </div>`
         });
+        if (error) {
+          console.error("[resend] Failed to send verification email:", error);
+        } else {
+          console.log("[resend] Verification email sent successfully:", data);
+        }
       } catch (error) {
-        console.error("Failed to send verification email:", error);
+        console.error("[resend] Exception sending verification email:", error);
       }
     }
   },
@@ -428,7 +433,7 @@ const authOptions = {
     magicLink({
       sendMagicLink: async ({ email, url }) => {
         try {
-          await resend.emails.send({
+          const { data, error } = await resend.emails.send({
             from: process.env.EMAIL_FROM || "SentinelStack Security <onboarding@resend.dev>",
             to: email,
             subject: "Your SentinelStack Magic Link",
@@ -440,8 +445,13 @@ const authOptions = {
                      <p style="margin-top:20px;font-size:12px;color:#94a3b8;">This link expires shortly and can only be used once.</p>
                    </div>`
           });
+          if (error) {
+            console.error("[resend] Failed to send magic link:", error);
+          } else {
+            console.log("[resend] Magic link sent successfully:", data);
+          }
         } catch (error) {
-          console.error("Failed to send magic link:", error);
+          console.error("[resend] Exception sending magic link:", error);
         }
       }
     }),
@@ -452,7 +462,7 @@ const authOptions = {
     emailOTP({
       async sendVerificationOTP({ email, otp }) {
         try {
-          await resend.emails.send({
+          const { data, error } = await resend.emails.send({
             from: process.env.EMAIL_FROM || "SentinelStack Security <onboarding@resend.dev>",
             to: email,
             subject: "Your SentinelStack Security Passcode",
@@ -463,8 +473,13 @@ const authOptions = {
                      <p style="font-size:12px;color:#94a3b8;">Do not share this code with anyone.</p>
                    </div>`
           });
+          if (error) {
+            console.error("[resend] Failed to send OTP:", error);
+          } else {
+            console.log("[resend] OTP sent successfully:", data);
+          }
         } catch (error) {
-          console.error("Failed to send OTP:", error);
+          console.error("[resend] Exception sending OTP:", error);
         }
       }
     })
