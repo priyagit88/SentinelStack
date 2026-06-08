@@ -16,18 +16,44 @@ declare global {
 
 async function executeRecaptcha(action: string): Promise<string> {
   const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
-  if (!siteKey || typeof window === "undefined" || !window.grecaptcha) return "";
+  if (!siteKey || typeof window === "undefined") return "";
+
+  // Wait for window.grecaptcha to be loaded and initialized if it isn't yet
+  const getGrecaptcha = async (): Promise<any> => {
+    if (window.grecaptcha) return window.grecaptcha;
+    return new Promise((resolve) => {
+      let attempts = 0;
+      const interval = setInterval(() => {
+        attempts++;
+        if (window.grecaptcha) {
+          clearInterval(interval);
+          resolve(window.grecaptcha);
+        } else if (attempts >= 40) { // Timeout after 4 seconds
+          clearInterval(interval);
+          resolve(undefined);
+        }
+      }, 100);
+    });
+  };
+
+  const grecaptcha = await getGrecaptcha();
+  if (!grecaptcha) {
+    console.error("reCAPTCHA script failed to load on the window object.");
+    return "";
+  }
+
   return new Promise<string>((resolve) => {
     const timer = setTimeout(() => {
       resolve("");
     }, 4000);
 
-    window.grecaptcha!.ready(async () => {
+    grecaptcha.ready(async () => {
       try {
-        const token = await window.grecaptcha!.execute(siteKey, { action });
+        const token = await grecaptcha.execute(siteKey, { action });
         clearTimeout(timer);
         resolve(token);
-      } catch {
+      } catch (err) {
+        console.error("reCAPTCHA execution failed:", err);
         clearTimeout(timer);
         resolve("");
       }
