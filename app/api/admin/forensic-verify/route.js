@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getBlockchainLogCount, getBlockchainLog } from "@/lib/blockchainLogger";
+import { getBlockchainLogCount, getBlockchainLog, anchorSecurityLog } from "@/lib/blockchainLogger";
 
 export const runtime = "nodejs";
 
@@ -103,6 +103,38 @@ export async function GET() {
     console.error("[API forensic-verify] Verification scan failed:", error);
     return NextResponse.json(
       { success: false, error: error.message || "Failed to perform forensic audit verification scan." },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * POST /api/admin/forensic-verify
+ * Dispatches an automated transaction to anchor a new forensic security log.
+ */
+export async function POST(request) {
+  try {
+    const body = await request.json();
+    const { userId, action, riskScore } = body;
+
+    if (!userId || !action || !riskScore) {
+      return NextResponse.json(
+        { success: false, error: "Missing required fields: userId, action, riskScore" },
+        { status: 400 }
+      );
+    }
+
+    const receipt = await anchorSecurityLog(userId, action, riskScore);
+
+    return NextResponse.json({
+      success: true,
+      message: "Log anchored successfully to blockchain.",
+      receipt
+    });
+  } catch (error) {
+    console.error("[API forensic-verify] Failed to anchor log:", error);
+    return NextResponse.json(
+      { success: false, error: error.message || "Failed to anchor security log to the blockchain." },
       { status: 500 }
     );
   }
