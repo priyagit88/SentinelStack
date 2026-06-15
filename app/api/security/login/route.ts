@@ -92,6 +92,8 @@ export async function POST(request: NextRequest) {
     rememberMe?: boolean;
     captchaToken?: string;
     focusToSubmitMs?: number;
+    latitude?: number;
+    longitude?: number;
   };
   try {
     body = (await request.json()) as typeof body;
@@ -127,6 +129,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const sanitizedHeaders = stripTrustDeviceCookies(request.headers);
+    if (typeof body.latitude === "number" && typeof body.longitude === "number") {
+      sanitizedHeaders.set("x-client-latitude", String(body.latitude));
+      sanitizedHeaders.set("x-client-longitude", String(body.longitude));
+    }
+
     const signInResponse = await auth.api.signInEmail({
       body: {
         email: body.email ?? "",
@@ -141,6 +148,10 @@ export async function POST(request: NextRequest) {
     // After a successful credential check, run Gemini threat analysis.
     // If confidence_score >= DECEPTION_THRESHOLD, silently divert into honeypot.
     const location = await resolveIpLocation(ip);
+    if (typeof body.latitude === "number" && typeof body.longitude === "number") {
+      location.lat = body.latitude;
+      location.lon = body.longitude;
+    }
     const ua = request.headers.get("user-agent") ?? undefined;
 
     const aiResult = await analyzeThreatWithGemini({
