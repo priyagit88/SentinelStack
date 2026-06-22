@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, LogIn, Eye, EyeOff } from "lucide-react";
+import { Loader2, LogIn, Eye, EyeOff, Fingerprint } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 
 declare global {
@@ -74,6 +74,32 @@ export function LoginForm() {
   async function signInWithProvider(provider: "google" | "github") {
     setPending(true);
     await authClient.signIn.social({ provider, callbackURL: "/profile" });
+  }
+
+  async function signInWithPasskey() {
+    setError("");
+    setPending(true);
+    try {
+      const { error: err } = await (
+        authClient as unknown as {
+          signIn: { passkey: () => Promise<{ error?: { message?: string } | null }> };
+        }
+      ).signIn.passkey();
+      if (err) {
+        setError(err.message ?? "Passkey sign-in failed.");
+        setPending(false);
+        return;
+      }
+      router.push("/profile");
+      router.refresh();
+    } catch (err) {
+      setError(
+        err instanceof Error && err.name === "NotAllowedError"
+          ? "Passkey sign-in was cancelled."
+          : "No passkey available on this device."
+      );
+      setPending(false);
+    }
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -209,6 +235,16 @@ export function LoginForm() {
           Google
         </button>
       </div>
+
+      <button
+        type="button"
+        onClick={() => void signInWithPasskey()}
+        disabled={isPending}
+        className="inline-flex items-center justify-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white ring-1 ring-inset ring-slate-800 hover:bg-slate-800 hover:ring-slate-700 transition-all disabled:opacity-60"
+      >
+        <Fingerprint className="h-5 w-5 text-cyan-300" />
+        Sign in with a passkey
+      </button>
     </form>
   );
 }

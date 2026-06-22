@@ -140,7 +140,7 @@ export function ProfileDashboard() {
 
       // Step 2: Verify OTP and Set Password
       const client = authClient as any;
-      
+
       // Verify OTP first
       const verifyRes = await client.emailOtp.verifyEmail({
         email: data.user.email,
@@ -148,15 +148,21 @@ export function ProfileDashboard() {
       });
       if (verifyRes?.error) throw verifyRes.error;
 
-      // Now link the password
-      if (client.user?.linkPassword) {
-        await client.user.linkPassword({ newPassword });
-      } else if (client.setPassword) {
-        await client.setPassword({ newPassword });
-      } else {
-        throw new Error("Password linking method not found on authClient");
+      // Now set the password via the server route. This links a `credential`
+      // account so the user can subsequently log in with email + password.
+      // (better-auth's client methods return { error } instead of throwing, and
+      // there is no client-side linkPassword in this version — doing it through
+      // the server lets us surface real failures instead of silently "succeeding".)
+      const setRes = await fetch("/api/security/set-password", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ password: newPassword })
+      });
+      if (!setRes.ok) {
+        const json = await setRes.json().catch(() => null);
+        throw new Error(json?.error ?? "Failed to set password.");
       }
-      
+
       setPasswordForm(prev => ({ 
         ...prev, 
         success: "Identity verified and password successfully linked!", 
