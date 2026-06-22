@@ -1,12 +1,13 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter, usePathname } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
-import { useRouter } from "next/navigation";
+import PillNav, { type PillNavItem } from "./PillNav";
 
 export function Navbar() {
   const { data: session, isPending } = authClient.useSession();
   const router = useRouter();
+  const pathname = usePathname();
 
   async function handleLogout() {
     await authClient.signOut();
@@ -14,38 +15,33 @@ export function Navbar() {
     router.refresh();
   }
 
+  // Build the pill items from auth state. Logout is an action item (no href).
+  const items: PillNavItem[] = isPending
+    ? []
+    : session
+    ? [
+        { label: "Profile", href: "/profile" },
+        { label: "Admin", href: "/admin" },
+        { label: "Logout", onClick: () => void handleLogout() }
+      ]
+    : [
+        { label: "Register", href: "/register" },
+        { label: "Login", href: "/login" }
+      ];
+
   return (
-    <nav className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
-      <Link href="/" className="text-lg font-semibold tracking-wide text-cyan-100">
-        SentinelStack
-      </Link>
-      <div className="flex items-center gap-4 text-sm text-slate-300">
-        {isPending ? null : session ? (
-          <>
-            <Link className="hover:text-cyan-200" href="/profile">
-              Profile
-            </Link>
-            <Link className="hover:text-cyan-200" href="/admin">
-              Admin
-            </Link>
-            <button 
-              onClick={() => void handleLogout()} 
-              className="hover:text-cyan-200"
-            >
-              Logout
-            </button>
-          </>
-        ) : (
-          <>
-            <Link className="hover:text-cyan-200" href="/register">
-              Register
-            </Link>
-            <Link className="hover:text-cyan-200" href="/login">
-              Login
-            </Link>
-          </>
-        )}
-      </div>
-    </nav>
+    <div className="mx-auto flex max-w-7xl items-center justify-center px-5 py-3">
+      <PillNav
+        logo="/logo.svg"
+        logoAlt="SentinelStack"
+        items={items}
+        activeHref={pathname}
+        baseColor="#0f172a"
+        pillColor="#1e293b"
+        pillTextColor="#e2e8f0"
+        hoveredPillTextColor="#38bdf8"
+        initialLoadAnimation={false}
+      />
+    </div>
   );
 }

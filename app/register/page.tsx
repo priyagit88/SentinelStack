@@ -1,8 +1,10 @@
 import { RegisterForm } from "@/components/register-form";
+import { RecaptchaScript } from "@/components/recaptcha-script";
 
 export default function RegisterPage() {
   return (
     <main className="mx-auto grid min-h-[calc(100vh-65px)] max-w-6xl items-center gap-10 px-5 py-12 lg:grid-cols-[0.9fr_1.1fr]">
+      <RecaptchaScript />
       <section>
         <p className="text-sm font-medium uppercase tracking-[0.24em] text-cyan-300">
           Bot-Aware Registration

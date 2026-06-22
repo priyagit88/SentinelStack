@@ -3,6 +3,7 @@ import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { nextCookies } from "better-auth/next-js";
 import { customSession, magicLink, emailOTP, twoFactor } from "better-auth/plugins";
+import { passkey } from "@better-auth/passkey";
 import { Resend } from "resend";
 import { MongoClient } from "mongodb";
 import { mongoUri } from "@/lib/db";
@@ -458,6 +459,15 @@ const authOptions = {
     twoFactor({
       issuer: "SentinelStack",
       skipVerificationOnEnable: false
+    }),
+    // Passkey (WebAuthn) as a phishing-resistant MFA / passwordless sign-in
+    // method. rpID and origin are pinned to the canonical baseURL host so
+    // registration and authentication agree on the relying party. In dev this
+    // resolves to localhost; in production to the Vercel host.
+    passkey({
+      rpName: "SentinelStack",
+      rpID: new URL(baseURL).hostname,
+      origin: baseURL
     }),
     emailOTP({
       async sendVerificationOTP({ email, otp }) {
