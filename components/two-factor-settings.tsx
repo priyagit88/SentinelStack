@@ -1,7 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ShieldCheck, ShieldOff, Loader2, KeyRound, Copy, Check } from "lucide-react";
+import { 
+  ShieldCheck, 
+  ShieldOff, 
+  Loader2, 
+  KeyRound, 
+  Copy, 
+  Check, 
+  ChevronRight, 
+  LockKeyhole,
+  Smartphone
+} from "lucide-react";
 import QRCode from "qrcode";
 import { authClient } from "@/lib/auth-client";
 
@@ -26,7 +36,11 @@ export function TwoFactorSettings({ hasPassword = true }: { hasPassword?: boolea
       setQrImage("");
       return;
     }
-    QRCode.toDataURL(totpUri, { width: 220, margin: 1 })
+    QRCode.toDataURL(totpUri, { 
+      width: 240, 
+      margin: 1,
+      color: { dark: "#000000", light: "#ffffff" }
+    })
       .then(setQrImage)
       .catch(() => setQrImage(""));
   }, [totpUri]);
@@ -59,7 +73,7 @@ export function TwoFactorSettings({ hasPassword = true }: { hasPassword?: boolea
       });
       const json = await res.json();
       if (!res.ok) {
-        setError(json?.error ?? "Could not start two-factor setup.");
+        setError(json?.error ?? "Authentication failed.");
         setLoading(false);
         return;
       }
@@ -77,10 +91,14 @@ export function TwoFactorSettings({ hasPassword = true }: { hasPassword?: boolea
     e.preventDefault();
     setError("");
     setLoading(true);
-    const { error: err } = await authClient.twoFactor.verifyTotp({ code });
+    // Explicitly pass trustDevice: true for the enabling user's current session
+    const { error: err } = await authClient.twoFactor.verifyTotp({ 
+      code, 
+      trustDevice: true 
+    });
     setLoading(false);
     if (err) {
-      setError(err.message ?? "Invalid code. Try again.");
+      setError(err.message ?? "Invalid verification code.");
       return;
     }
     setPhase("backup-codes");
@@ -110,135 +128,81 @@ export function TwoFactorSettings({ hasPassword = true }: { hasPassword?: boolea
 
   if (isPending) {
     return (
-      <div className="rounded-lg border border-cyan-300/10 bg-slate-950/40 p-5">
-        <Loader2 className="h-4 w-4 animate-spin text-cyan-300" />
+      <div className="flex h-32 items-center justify-center rounded-xl bg-slate-900/50">
+        <Loader2 className="h-6 w-6 animate-spin text-cyan-400" />
       </div>
     );
   }
 
-  const isFirstTimePasswordSetup = !hasPassword && !enabled;
-  const passwordLabel = isFirstTimePasswordSetup
-    ? "Create a password (used to confirm changes & 2FA enrollment)"
-    : "Confirm your password to begin setup";
-
   return (
-    <div className="rounded-lg border border-cyan-300/10 bg-slate-950/40 p-5">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-3">
-          {enabled ? (
-            <ShieldCheck className="h-6 w-6 shrink-0 text-emerald-300" />
-          ) : (
-            <ShieldOff className="h-6 w-6 shrink-0 text-slate-400" />
-          )}
+    <div className="relative overflow-hidden rounded-xl border border-white/5 bg-slate-900/30 p-6 backdrop-blur-sm">
+      <div className="flex items-start justify-between gap-6">
+        <div className="flex gap-4">
+          <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset ${
+            enabled ? "bg-emerald-500/10 ring-emerald-500/30 text-emerald-400" : "bg-slate-800 ring-slate-700 text-slate-500"
+          }`}>
+            {enabled ? <ShieldCheck className="h-6 w-6" /> : <ShieldOff className="h-6 w-6" />}
+          </div>
           <div>
-            <h3 className="text-base font-semibold text-white">Two-Factor Authentication</h3>
-            <p className="mt-1 text-sm text-slate-400">
+            <h3 className="text-lg font-bold text-white">Two-Factor Authentication</h3>
+            <p className="mt-1 max-w-lg text-sm leading-relaxed text-slate-400">
               {enabled
-                ? "Active — sign-ins require a 6-digit code from your authenticator app."
-                : "Add an extra layer of security using Google Authenticator, Authy, or any TOTP app."}
+                ? "Your account is protected with TOTP. New sign-ins will require a code from your authenticator app."
+                : "Secure your account by requiring an additional verification step. You can use apps like Google Authenticator or Microsoft Authenticator."}
             </p>
           </div>
         </div>
+        
         {phase === "idle" && (
           <button
             onClick={() => setPhase(enabled ? "disable" : "password")}
-            className={`shrink-0 rounded-md px-3 py-2 text-sm font-semibold ${
+            className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-all ${
               enabled
-                ? "bg-red-500/10 text-red-200 ring-1 ring-inset ring-red-400/30 hover:bg-red-500/20"
-                : "bg-cyan-300 text-slate-950 hover:bg-cyan-200"
+                ? "bg-red-500/10 text-red-300 hover:bg-red-500/20 ring-1 ring-red-500/30"
+                : "bg-cyan-400 text-slate-950 hover:bg-cyan-300 hover:scale-[1.02]"
             }`}
           >
-            {enabled ? "Disable" : "Enable"}
+            {enabled ? "Manage Security" : "Enable MFA"}
+            {!enabled && <ChevronRight className="h-4 w-4" />}
           </button>
         )}
       </div>
 
       {phase === "password" && (
-        <form onSubmit={startEnable} className="mt-5 grid gap-3 border-t border-cyan-300/10 pt-5">
-          {isFirstTimePasswordSetup && (
-            <p className="text-xs text-slate-400">
-              You signed in with Google/GitHub. Pick a password (min 8 characters) — it will be
-              attached to your account so 2FA can verify it&apos;s you. You can still keep using
-              social sign-in.
-            </p>
-          )}
-          <label className="grid gap-2 text-sm text-slate-300">
-            {passwordLabel}
-            <input
-              type="password"
-              autoFocus
-              required
-              minLength={8}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="rounded-md border border-cyan-200/20 bg-slate-950 px-4 py-2.5 text-white outline-none focus:border-cyan-300"
-            />
-          </label>
-          {error && <p className="text-sm text-red-300">{error}</p>}
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={loading}
-              className="inline-flex items-center gap-2 rounded-md bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-60"
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-              Continue
-            </button>
-            <button type="button" onClick={reset} className="rounded-md px-4 py-2 text-sm text-slate-400 hover:text-white">
-              Cancel
-            </button>
-          </div>
-        </form>
-      )}
-
-      {phase === "scan" && (
-        <div className="mt-5 grid gap-4 border-t border-cyan-300/10 pt-5">
-          <p className="text-sm text-slate-300">
-            Scan this QR code with Google Authenticator (or any TOTP app), then enter the 6-digit
-            code it shows.
-          </p>
-          {qrImage ? (
-            <div className="flex justify-center rounded-md bg-white p-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={qrImage} alt="Two-factor QR code" width={220} height={220} />
-            </div>
-          ) : (
-            <div className="flex items-center justify-center rounded-md border border-cyan-300/10 bg-slate-900 p-8 text-sm text-slate-400">
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Generating QR code...
-            </div>
-          )}
-          <details className="text-xs text-slate-400">
-            <summary className="cursor-pointer">Can&apos;t scan? Show setup key</summary>
-            <code className="mt-2 block break-all rounded bg-slate-900 p-2 font-mono text-slate-300">
-              {totpUri || "—"}
-            </code>
-          </details>
-          <form onSubmit={verifyEnable} className="grid gap-3">
-            <label className="grid gap-2 text-sm text-slate-300">
-              6-digit code
+        <div className="mt-8 animate-in fade-in slide-in-from-top-4">
+          <div className="mb-6 h-px bg-white/5" />
+          <form onSubmit={startEnable} className="mx-auto max-w-sm space-y-4">
+             <div className="flex justify-center mb-4">
+                <LockKeyhole className="h-10 w-10 text-cyan-400 opacity-50" />
+             </div>
+             <p className="text-center text-sm text-slate-300">
+               Confirm your identity to begin the setup process.
+             </p>
+            <div className="grid gap-2">
               <input
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={6}
+                type="password"
+                placeholder="Enter current password"
                 autoFocus
                 required
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                className="rounded-md border border-cyan-200/20 bg-slate-950 px-4 py-2.5 text-center text-xl tracking-[0.5em] text-white outline-none focus:border-cyan-300"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-lg border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-400/50 focus:ring-1 focus:ring-cyan-400/50"
               />
-            </label>
-            {error && <p className="text-sm text-red-300">{error}</p>}
-            <div className="flex gap-2">
+            </div>
+            {error && <p className="text-center text-sm font-medium text-red-400">{error}</p>}
+            <div className="flex gap-3 pt-2">
               <button
                 type="submit"
-                disabled={loading || code.length !== 6}
-                className="inline-flex items-center gap-2 rounded-md bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-60"
+                disabled={loading}
+                className="flex-1 rounded-lg bg-cyan-400 py-3 text-sm font-bold text-slate-950 hover:bg-cyan-300 disabled:opacity-50"
               >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                Verify &amp; Enable
+                {loading ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Verify Password"}
               </button>
-              <button type="button" onClick={reset} className="rounded-md px-4 py-2 text-sm text-slate-400 hover:text-white">
+              <button 
+                type="button" 
+                onClick={reset} 
+                className="flex-1 rounded-lg bg-slate-800 py-3 text-sm font-bold text-white hover:bg-slate-700"
+              >
                 Cancel
               </button>
             </div>
@@ -246,63 +210,149 @@ export function TwoFactorSettings({ hasPassword = true }: { hasPassword?: boolea
         </div>
       )}
 
-      {phase === "backup-codes" && (
-        <div className="mt-5 grid gap-3 border-t border-cyan-300/10 pt-5">
-          <div className="rounded-md bg-amber-500/10 p-3 text-sm text-amber-200 ring-1 ring-inset ring-amber-400/30">
-            Save these backup codes in a safe place. Each can be used once if you lose your
-            authenticator.
+      {phase === "scan" && (
+        <div className="mt-8 animate-in fade-in zoom-in-95">
+          <div className="mb-8 h-px bg-white/5" />
+          <div className="grid gap-8 md:grid-cols-2">
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-cyan-400/20 text-xs font-bold text-cyan-400">1</div>
+                 <h4 className="font-bold text-white">Scan the QR code</h4>
+              </div>
+              <p className="text-sm text-slate-400 leading-relaxed">
+                Open your authenticator app and scan this code to link your account. 
+                Keep this code secret and do not share it.
+              </p>
+              
+              <div className="overflow-hidden rounded-xl bg-white p-4 inline-block ring-8 ring-white/5 shadow-2xl">
+                {qrImage ? (
+                  <img src={qrImage} alt="Setup QR" className="h-48 w-48" />
+                ) : (
+                  <div className="flex h-48 w-48 items-center justify-center bg-slate-100 italic text-slate-400">
+                    Generating...
+                  </div>
+                )}
+              </div>
+              
+              <button 
+                type="button"
+                onClick={() => setTotpUri(totpUri ? "" : totpUri)} 
+                className="block text-xs text-slate-500 hover:text-cyan-400"
+              >
+                Manual setup key: <span className="font-mono">{totpUri.split("secret=")[1]?.split("&")[0] || "••••••••"}</span>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-cyan-400/20 text-xs font-bold text-cyan-400">2</div>
+                 <h4 className="font-bold text-white">Enter verification code</h4>
+              </div>
+              <p className="text-sm text-slate-400">
+                Type the 6-digit code shown in your app to confirm enrollment.
+              </p>
+              
+              <form onSubmit={verifyEnable} className="space-y-4">
+                <input
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  required
+                  placeholder="000 000"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                  className="w-full rounded-lg border border-white/10 bg-slate-950 px-4 py-4 text-center text-3xl font-bold tracking-[0.25em] text-cyan-400 outline-none focus:border-cyan-400/50"
+                />
+                {error && <p className="text-sm text-red-400">{error}</p>}
+                <button
+                  type="submit"
+                  disabled={loading || code.length !== 6}
+                  className="w-full rounded-xl bg-cyan-400 py-4 text-sm font-bold text-slate-950 hover:bg-cyan-300 disabled:opacity-50 transition-all font-mono"
+                >
+                  {loading ? <Loader2 className="h-5 w-5 animate-spin mx-auto" /> : "Verify & Activate"}
+                </button>
+                <button type="button" onClick={reset} className="w-full text-sm text-slate-500 hover:text-white">
+                  Cancel activation
+                </button>
+              </form>
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-2 rounded-md bg-slate-900 p-3 font-mono text-sm text-slate-200">
+        </div>
+      )}
+
+      {phase === "backup-codes" && (
+        <div className="mt-8 animate-in fade-in slide-in-from-bottom-4">
+          <div className="mb-6 h-px bg-white/5" />
+          <div className="rounded-xl bg-amber-500/10 p-5 ring-1 ring-inset ring-amber-500/20">
+            <h4 className="flex items-center gap-2 font-bold text-amber-200">
+               <Smartphone className="h-4 w-4" /> MFA is Enabled!
+            </h4>
+            <p className="mt-2 text-sm text-amber-200/80">
+              Setup is complete. Please save these codes now. If you lose your phone, these are the only way back into your account.
+            </p>
+          </div>
+          
+          <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
             {backupCodes.map((c) => (
-              <div key={c}>{c}</div>
+              <div key={c} className="rounded-lg bg-white/5 p-3 text-center font-mono text-sm text-slate-300 ring-1 ring-white/5">
+                {c}
+              </div>
             ))}
           </div>
-          <div className="flex gap-2">
+          
+          <div className="mt-8 flex gap-4">
             <button
               onClick={copyCodes}
-              className="inline-flex items-center gap-2 rounded-md bg-slate-800 px-4 py-2 text-sm text-white hover:bg-slate-700"
+              className="flex items-center gap-2 rounded-lg bg-slate-800 px-6 py-3 text-sm font-bold text-white hover:bg-slate-700 transition-colors"
             >
-              {copied ? <Check className="h-4 w-4 text-emerald-300" /> : <Copy className="h-4 w-4" />}
-              {copied ? "Copied" : "Copy codes"}
+              {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+              {copied ? "Copied to Clipboard" : "Copy Recovery Codes"}
             </button>
             <button
               onClick={reset}
-              className="rounded-md bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950"
+              className="rounded-lg bg-cyan-400 px-8 py-3 text-sm font-bold text-slate-950 hover:bg-cyan-300"
             >
-              Done
+              Finish Setup
             </button>
           </div>
         </div>
       )}
 
       {phase === "disable" && (
-        <form onSubmit={startDisable} className="mt-5 grid gap-3 border-t border-cyan-300/10 pt-5">
-          <label className="grid gap-2 text-sm text-slate-300">
-            Confirm your password to disable two-factor
+        <div className="mt-8 animate-in fade-in slide-in-from-top-4">
+          <div className="mb-6 h-px bg-white/5" />
+          <form onSubmit={startDisable} className="mx-auto max-w-sm space-y-4 text-center">
+            <ShieldOff className="mx-auto h-12 w-12 text-red-400 opacity-50" />
+            <div>
+              <h4 className="text-lg font-bold text-white">Disable Protection?</h4>
+              <p className="text-sm text-slate-400 mt-2">
+                This will remove the extra security layer from your account.
+              </p>
+            </div>
             <input
               type="password"
+              placeholder="Confirm password"
               autoFocus
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="rounded-md border border-cyan-200/20 bg-slate-950 px-4 py-2.5 text-white outline-none focus:border-cyan-300"
+              className="w-full rounded-lg border border-red-500/20 bg-slate-950 px-4 py-3 text-white outline-none focus:border-red-500/50"
             />
-          </label>
-          {error && <p className="text-sm text-red-300">{error}</p>}
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={loading}
-              className="inline-flex items-center gap-2 rounded-md bg-red-500/20 px-4 py-2 text-sm font-semibold text-red-200 ring-1 ring-inset ring-red-400/30 hover:bg-red-500/30 disabled:opacity-60"
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldOff className="h-4 w-4" />}
-              Disable Two-Factor
-            </button>
-            <button type="button" onClick={reset} className="rounded-md px-4 py-2 text-sm text-slate-400 hover:text-white">
-              Cancel
-            </button>
-          </div>
-        </form>
+            {error && <p className="text-sm text-red-400">{error}</p>}
+            <div className="flex gap-3">
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex-1 rounded-lg bg-red-500/20 py-3 text-sm font-bold text-red-400 ring-1 ring-red-500/30 hover:bg-red-500/30 disabled:opacity-50"
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Disable MFA"}
+              </button>
+              <button type="button" onClick={reset} className="flex-1 rounded-lg bg-slate-800 py-3 text-sm font-bold text-white hover:bg-slate-700">
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
       )}
     </div>
   );
