@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
   if (body.worldIdProof && worldIdAppId) {
     try {
       const { verifyCloudProof } = await import("@worldcoin/idkit");
-      const verifyRes = await verifyCloudProof(body.worldIdProof, worldIdAppId, worldIdAction);
+      const verifyRes = (await verifyCloudProof(body.worldIdProof as any, worldIdAppId, worldIdAction)) as any;
 
       if (!verifyRes.success) {
         await recordSecurityEvent({

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getBlockchainLogCount, getBlockchainLog, anchorSecurityLog } from "@/lib/blockchainLogger";
 
 export const runtime = "nodejs";
@@ -28,6 +28,23 @@ const placeholderDatabaseLogs = [
   }
 ];
 
+interface AuditRecord {
+  index: number;
+  onChain: {
+    userId: string;
+    action: string;
+    riskScore: string;
+    timestamp: string;
+  };
+  database: {
+    userId: string;
+    action: string;
+    riskScore: string;
+  } | null;
+  status: string;
+  discrepancyDetails: string;
+}
+
 /**
  * GET /api/admin/forensic-verify
  * Scans all on-chain audit trails, compares them with local DB entries, and flags discrepancies.
@@ -35,7 +52,7 @@ const placeholderDatabaseLogs = [
 export async function GET() {
   try {
     const onChainCount = await getBlockchainLogCount();
-    const verificationLogs = [];
+    const verificationLogs: AuditRecord[] = [];
     let integrityScore = 100;
     let overallStatus = "COMPLIANT";
     let flagsRaised = 0;
@@ -100,9 +117,10 @@ export async function GET() {
       auditTrail: verificationLogs
     });
   } catch (error) {
-    console.error("[API forensic-verify] Verification scan failed:", error);
+    const err = error as Error;
+    console.error("[API forensic-verify] Verification scan failed:", err);
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to perform forensic audit verification scan." },
+      { success: false, error: err.message || "Failed to perform forensic audit verification scan." },
       { status: 500 }
     );
   }
@@ -112,7 +130,7 @@ export async function GET() {
  * POST /api/admin/forensic-verify
  * Dispatches an automated transaction to anchor a new forensic security log.
  */
-export async function POST(request) {
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { userId, action, riskScore } = body;
@@ -132,9 +150,10 @@ export async function POST(request) {
       receipt
     });
   } catch (error) {
-    console.error("[API forensic-verify] Failed to anchor log:", error);
+    const err = error as Error;
+    console.error("[API forensic-verify] Failed to anchor log:", err);
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to anchor security log to the blockchain." },
+      { success: false, error: err.message || "Failed to anchor security log to the blockchain." },
       { status: 500 }
     );
   }

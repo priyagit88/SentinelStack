@@ -25,7 +25,7 @@ export function WorldIDVerify({ onVerified, buttonText = "Verify with World ID" 
           verification_level={VerificationLevel.Device}
           onSuccess={handleSuccess}
         >
-          {({ open }) => (
+          {({ open }: any) => (
             <button
               type="button"
               onClick={open}

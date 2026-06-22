@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { anchorSecurityLog } from "@/lib/blockchainLogger";
 
 export const runtime = "nodejs";
@@ -7,7 +7,7 @@ export const runtime = "nodejs";
  * POST /api/security/trigger-alert
  * Triggers a security alert incident, saves it locally/databases, and anchors it to the on-chain ledger.
  */
-export async function POST(request) {
+export async function POST(request: NextRequest) {
   try {
     let body;
     try {
@@ -33,15 +33,6 @@ export async function POST(request) {
     // DATABASE PERSISTENCE PLACEHOLDER
     // In a live production configuration, we simultaneously save these tracking
     // coordinates to our central database (e.g. MongoDB/Mongoose or PostgreSQL).
-    //
-    // Example:
-    //   await connectMongoose();
-    //   const localLog = await SecurityLog.create({
-    //     userId,
-    //     action,
-    //     riskScore,
-    //     timestamp: new Date()
-    //   });
     // =========================================================================
 
     console.log(`[API trigger-alert] Triggered alert for ${userId} - anchoring to blockchain...`);
@@ -55,9 +46,10 @@ export async function POST(request) {
       receipt
     });
   } catch (error) {
-    console.error("[API trigger-alert] Incident trigger failure:", error);
+    const err = error as Error;
+    console.error("[API trigger-alert] Incident trigger failure:", err);
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to anchor incident on-chain." },
+      { success: false, error: err.message || "Failed to anchor incident on-chain." },
       { status: 500 }
     );
   }

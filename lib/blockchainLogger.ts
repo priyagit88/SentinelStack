@@ -5,14 +5,33 @@ const rpcUrl = process.env.BLOCKCHAIN_RPC_URL || "http://127.0.0.1:8545";
 const operatorPrivateKey = process.env.BLOCKCHAIN_OPERATOR_PRIVATE_KEY;
 const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
 
+interface AnchorReceipt {
+  transactionHash: string;
+  blockNumber: number;
+  gasUsed: string;
+  from: string;
+  to: string;
+}
+
+interface BlockchainLogRecord {
+  userId: string;
+  action: string;
+  riskScore: string;
+  timestamp: number;
+}
+
 /**
  * Signs and dispatches an automated transaction to the smart contract to anchor a forensic security log.
- * @param {string} userId - The unique identifier of the user causing the alert.
- * @param {string} action - The action/alert description.
- * @param {string} riskScore - The computed risk level.
- * @returns {Promise<object>} The receipt data.
+ * @param userId - The unique identifier of the user causing the alert.
+ * @param action - The action/alert description.
+ * @param riskScore - The computed risk level.
+ * @returns The receipt data.
  */
-export async function anchorSecurityLog(userId, action, riskScore) {
+export async function anchorSecurityLog(
+  userId: string,
+  action: string,
+  riskScore: string
+): Promise<AnchorReceipt> {
   try {
     if (!operatorPrivateKey) {
       throw new Error("BLOCKCHAIN_OPERATOR_PRIVATE_KEY environment variable is missing.");
@@ -49,9 +68,9 @@ export async function anchorSecurityLog(userId, action, riskScore) {
 
 /**
  * Gets the total count of on-chain security logs.
- * @returns {Promise<number>}
+ * @returns The count of logs.
  */
-export async function getBlockchainLogCount() {
+export async function getBlockchainLogCount(): Promise<number> {
   try {
     if (!contractAddress) {
       throw new Error("NEXT_PUBLIC_CONTRACT_ADDRESS environment variable is missing.");
@@ -68,10 +87,10 @@ export async function getBlockchainLogCount() {
 
 /**
  * Retrieves a log record from the blockchain registry by its index.
- * @param {number} index
- * @returns {Promise<object>}
+ * @param index - The index of the log.
+ * @returns The log record details.
  */
-export async function getBlockchainLog(index) {
+export async function getBlockchainLog(index: number): Promise<BlockchainLogRecord> {
   try {
     if (!contractAddress) {
       throw new Error("NEXT_PUBLIC_CONTRACT_ADDRESS environment variable is missing.");
