@@ -2,7 +2,82 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Theme tokens ──────────────────────────────────────────────────────────
+   Tailwind's white / slate / cyan resolve to these RGB triples (see
+   tailwind.config.ts). Theme resolution, in priority order:
+     1. <html data-theme="light|dark">  → explicit user choice (ThemeToggle)
+     2. prefers-color-scheme            → device default (when no explicit choice)
+     3. dark                            → fallback
+   The light ramp is applied both for "system prefers light (and not forced
+   dark)" and for "forced light"; the value block is repeated for each. */
 :root {
+  color-scheme: light dark;
+
+  --c-white: 255 255 255;
+  --c-slate-100: 241 245 249;
+  --c-slate-200: 226 232 240;
+  --c-slate-300: 203 213 225;
+  --c-slate-400: 148 163 184;
+  --c-slate-500: 100 116 139;
+  --c-slate-600: 71 85 105;
+  --c-slate-700: 51 65 85;
+  --c-slate-800: 30 41 59;
+  --c-slate-900: 15 23 42;
+  --c-slate-950: 2 6 23;
+  --c-cyan-100: 207 250 254;
+  --c-cyan-200: 165 243 252;
+  --c-cyan-300: 103 232 249;
+  --c-cyan-400: 34 211 238;
+  --c-cyan-500: 6 182 212;
+}
+
+/* Light ramp. white -> dark so the 80+ `text-white` primary-text usages read on
+   light; solid must-stay-white surfaces (QR code) are pinned to a literal #fff.
+   The slate ramp inverts: high shades (backgrounds) become light, low shades
+   (text) become dark. cyan accents are darkened for contrast on light. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --c-white: 15 23 42;
+    --c-slate-950: 248 250 252;
+    --c-slate-900: 241 245 249;
+    --c-slate-800: 226 232 240;
+    --c-slate-700: 203 213 225;
+    --c-slate-600: 148 163 184;
+    --c-slate-500: 100 116 139;
+    --c-slate-400: 71 85 105;
+    --c-slate-300: 51 65 85;
+    --c-slate-200: 30 41 59;
+    --c-slate-100: 15 23 42;
+    --c-cyan-500: 14 116 144;
+    --c-cyan-400: 8 145 178;
+    --c-cyan-300: 14 116 144;
+    --c-cyan-200: 103 232 249;
+    --c-cyan-100: 165 243 252;
+  }
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --c-white: 15 23 42;
+  --c-slate-950: 248 250 252;
+  --c-slate-900: 241 245 249;
+  --c-slate-800: 226 232 240;
+  --c-slate-700: 203 213 225;
+  --c-slate-600: 148 163 184;
+  --c-slate-500: 100 116 139;
+  --c-slate-400: 71 85 105;
+  --c-slate-300: 51 65 85;
+  --c-slate-200: 30 41 59;
+  --c-slate-100: 15 23 42;
+  --c-cyan-500: 14 116 144;
+  --c-cyan-400: 8 145 178;
+  --c-cyan-300: 14 116 144;
+  --c-cyan-200: 103 232 249;
+  --c-cyan-100: 165 243 252;
+}
+
+:root[data-theme="dark"] {
   color-scheme: dark;
 }
 
@@ -15,6 +90,24 @@ body {
   color: #e5e7eb;
 }
 
+/* keep one source of truth for the light page background */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) body {
+    background:
+      radial-gradient(circle at 15% 10%, rgba(20, 184, 166, 0.1), transparent 28rem),
+      radial-gradient(circle at 85% 0%, rgba(239, 68, 68, 0.06), transparent 24rem),
+      #f8fafc;
+    color: #0f172a;
+  }
+}
+:root[data-theme="light"] body {
+  background:
+    radial-gradient(circle at 15% 10%, rgba(20, 184, 166, 0.1), transparent 28rem),
+    radial-gradient(circle at 85% 0%, rgba(239, 68, 68, 0.06), transparent 24rem),
+    #f8fafc;
+  color: #0f172a;
+}
+
 button,
 input {
   font: inherit;
@@ -25,6 +118,19 @@ input {
     linear-gradient(rgba(34, 211, 238, 0.08) 1px, transparent 1px),
     linear-gradient(90deg, rgba(34, 211, 238, 0.08) 1px, transparent 1px);
   background-size: 38px 38px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .cyber-grid {
+    background-image:
+      linear-gradient(rgba(8, 145, 178, 0.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(8, 145, 178, 0.07) 1px, transparent 1px);
+  }
+}
+:root[data-theme="light"] .cyber-grid {
+  background-image:
+    linear-gradient(rgba(8, 145, 178, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(8, 145, 178, 0.07) 1px, transparent 1px);
 }
 
 .pulse-danger {

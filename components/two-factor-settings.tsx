@@ -514,7 +514,7 @@ export function TwoFactorSettings({ hasPassword = true }: { hasPassword?: boolea
                 secret and do not share it.
               </p>
 
-              <div className="inline-block overflow-hidden rounded-xl bg-white p-4 shadow-2xl ring-8 ring-white/5">
+              <div className="inline-block overflow-hidden rounded-xl bg-[#ffffff] p-4 shadow-2xl ring-8 ring-white/5">
                 {qrImage ? (
                   <img src={qrImage} alt="Setup QR" className="h-48 w-48" />
                 ) : (
