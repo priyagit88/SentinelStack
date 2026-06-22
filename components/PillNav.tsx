@@ -261,7 +261,8 @@ const PillNav = ({
     </>
   );
 
-  const logoHref = items?.find((it) => isRouterLink(it.href))?.href ?? "/";
+  // Logo always links home, independent of the nav items.
+  const logoHref = "/";
 
   return (
     <div className="pill-nav-container">
