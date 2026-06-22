@@ -429,14 +429,25 @@ const authOptions = {
       const persisted = await User.findOne({
         $or: [{ id: user.id }, { email: user.email }]
       })
-        .select("isFlagged riskScore")
-        .lean<{ isFlagged?: boolean; riskScore?: number } | null>();
+        .select("isFlagged riskScore isVerifiedHuman")
+        .lean<{ isFlagged?: boolean; riskScore?: number; isVerifiedHuman?: boolean } | null>();
+
+      let riskScore = Number(persisted?.riskScore ?? (user as { riskScore?: number }).riskScore ?? 0);
+
+      // World ID risk score integration: verified humans get a reduced risk score,
+      // unverified accounts receive a penalty to reflect the absence of proof-of-personhood.
+      if (persisted?.isVerifiedHuman) {
+        riskScore = Math.max(0, riskScore - 20);
+      } else {
+        riskScore += 15;
+      }
 
       return {
         user: {
           ...user,
           isFlagged: Boolean(persisted?.isFlagged ?? (user as { isFlagged?: boolean }).isFlagged),
-          riskScore: Number(persisted?.riskScore ?? (user as { riskScore?: number }).riskScore ?? 0)
+          riskScore,
+          isVerifiedHuman: Boolean(persisted?.isVerifiedHuman ?? false)
         },
         session
       };

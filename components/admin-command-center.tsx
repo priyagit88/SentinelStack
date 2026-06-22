@@ -35,6 +35,8 @@ import {
   Check
 } from "lucide-react";
 
+import { BlockchainExplorer } from "@/components/blockchain-explorer";
+
 const Globe = dynamic(() => import("react-globe.gl"), { ssr: false });
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -1257,6 +1259,11 @@ export function AdminCommandCenter() {
           </div>
         </div>
       )}
+
+      {/* ── Clean Blockchain Explorer (always visible below tabs) ── */}
+      <section>
+        <BlockchainExplorer />
+      </section>
 
       {/* ── Blocked Accounts ── */}
       <section>

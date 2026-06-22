@@ -7,6 +7,15 @@ const rpcUrl = process.env.BLOCKCHAIN_RPC_URL || "http://127.0.0.1:8545";
 const operatorPrivateKey = process.env.BLOCKCHAIN_OPERATOR_PRIVATE_KEY;
 const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
 
+interface BlockDetails {
+  number: number;
+  hash: string | null;
+  parentHash: string;
+  timestamp: number;
+  gasUsed: string;
+  txCount: number;
+}
+
 /**
  * GET /api/admin/blockchain-info
  * Returns metadata about the connected blockchain network and recent blocks.
@@ -19,7 +28,7 @@ export async function GET() {
 
     // Check if network is reachable by calling getBlockNumber with a timeout
     const blockNumberPromise = provider.getBlockNumber();
-    const timeoutPromise = new Promise((_, reject) =>
+    const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error("Timeout connecting to RPC")), 2500)
     );
     const blockNumber = await Promise.race([blockNumberPromise, timeoutPromise]);
@@ -61,7 +70,7 @@ export async function GET() {
     }
 
     // Fetch recent block headers (last 5 blocks)
-    const recentBlocks = [];
+    const recentBlocks: BlockDetails[] = [];
     const limit = 5;
     const start = blockNumber;
     const end = Math.max(0, blockNumber - limit + 1);
@@ -100,10 +109,11 @@ export async function GET() {
     });
 
   } catch (error) {
-    console.error("[API blockchain-info] Failed to query blockchain status:", error);
+    const err = error as Error;
+    console.error("[API blockchain-info] Failed to query blockchain status:", err);
     return NextResponse.json({
       success: false,
-      error: error.message || "Failed to connect to local blockchain network",
+      error: err.message || "Failed to connect to local blockchain network",
       isOffline: true,
       setupInstructions: {
         command1: "npx hardhat node",

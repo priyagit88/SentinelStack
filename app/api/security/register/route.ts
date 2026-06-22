@@ -16,6 +16,12 @@ export async function POST(request: NextRequest) {
     website?: string;
     focusToSubmitMs?: number;
     captchaToken?: string;
+    worldIdProof?: {
+      merkle_root: string;
+      nullifier_hash: string;
+      proof: string;
+      verification_level: string;
+    };
   };
   try {
     body = (await request.json()) as typeof body;
@@ -63,6 +69,57 @@ export async function POST(request: NextRequest) {
       { error: "CAPTCHA verification failed. Please try again." },
       { status: 403 }
     );
+  }
+
+  // World ID verification (server-side proof verification)
+  let worldIdNullifier: string | null = null;
+  const worldIdAppId = process.env.WORLD_ID_APP_ID as `app_${string}` | undefined;
+  const worldIdAction = process.env.WORLD_ID_ACTION || "sentinel_register";
+
+  if (body.worldIdProof && worldIdAppId) {
+    try {
+      const { verifyCloudProof } = await import("@worldcoin/idkit");
+      const verifyRes = await verifyCloudProof(body.worldIdProof, worldIdAppId, worldIdAction);
+
+      if (!verifyRes.success) {
+        await recordSecurityEvent({
+          type: "WORLD_ID_FAILED",
+          severity: "HIGH",
+          details: `World ID verification failed for ${body.email ?? "unknown"}.`,
+          ip,
+          metadata: { email: body.email },
+          runAi: false
+        });
+        return NextResponse.json(
+          { error: "World ID verification failed. Please try again." },
+          { status: 400 }
+        );
+      }
+
+      // Check if this World ID nullifier has already been used
+      await connectMongoose();
+      const existingNullifier = await User.findOne({ worldIdNullifier: verifyRes.nullifier_hash });
+      if (existingNullifier) {
+        return NextResponse.json(
+          { error: "This World ID has already been used to register an account." },
+          { status: 409 }
+        );
+      }
+
+      worldIdNullifier = verifyRes.nullifier_hash;
+    } catch (err) {
+      console.error("[register] World ID verification error:", err);
+      // Don't block registration if World ID verification service is down,
+      // but log it as a security event
+      await recordSecurityEvent({
+        type: "WORLD_ID_ERROR",
+        severity: "MEDIUM",
+        details: `World ID verification service error during registration for ${body.email ?? "unknown"}.`,
+        ip,
+        metadata: { email: body.email, error: String(err) },
+        runAi: false
+      });
+    }
   }
 
   const automated = typeof body.focusToSubmitMs === "number" && body.focusToSubmitMs < 1500;
@@ -114,6 +171,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: normalizedMessage },
         { status: response.status }
+      );
+    }
+
+    // Update user with World ID fields after successful creation
+    if (worldIdNullifier && body.email) {
+      await connectMongoose();
+      await User.updateOne(
+        { email: body.email },
+        {
+          $set: {
+            worldIdNullifier,
+            isVerifiedHuman: true
+          }
+        }
       );
     }
 

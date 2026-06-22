@@ -1,4 +1,18 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {};
+const nextConfig = {
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        "@react-native-async-storage/async-storage": false,
+        "pino-pretty": false,
+        "encoding": false,
+        "lokijs": false,
+      };
+    }
+    return config;
+  },
+};
 
 export default nextConfig;
+

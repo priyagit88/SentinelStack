@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import { Navbar } from "@/components/navbar";
+import { Web3Provider } from "@/components/web3-provider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -19,12 +20,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             strategy="beforeInteractive"
           />
         ) : null}
-        <div className="min-h-screen cyber-grid">
-          <header className="border-b border-cyan-300/10 bg-slate-950/70 backdrop-blur">
-            <Navbar />
-          </header>
-          {children}
-        </div>
+        <Web3Provider>
+          <div className="min-h-screen cyber-grid">
+            <header className="border-b border-cyan-300/10 bg-slate-950/70 backdrop-blur">
+              <Navbar />
+            </header>
+            {children}
+          </div>
+        </Web3Provider>
       </body>
     </html>
   );
