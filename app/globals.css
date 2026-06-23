@@ -3,15 +3,14 @@
 @tailwind utilities;
 
 /* ── Theme tokens ──────────────────────────────────────────────────────────
-   Tailwind's white / slate / cyan resolve to these RGB triples (see
-   tailwind.config.ts). Theme resolution, in priority order:
-     1. <html data-theme="light|dark">  → explicit user choice (ThemeToggle)
-     2. prefers-color-scheme            → device default (when no explicit choice)
-     3. dark                            → fallback
-   The light ramp is applied both for "system prefers light (and not forced
-   dark)" and for "forced light"; the value block is repeated for each. */
+   Tailwind's white / slate / cyan / status colors resolve to these RGB triples
+   (see tailwind.config.ts). :root holds the DARK theme (also the no-JS
+   fallback). The light theme lives in a single :root[data-theme="light"] block.
+   The boot script in app/layout.tsx resolves the active theme — explicit user
+   choice, else the device's prefers-color-scheme — and writes data-theme before
+   first paint, so there's no flash and the CSS needs no media queries. */
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
 
   --c-white: 255 255 255;
   --c-slate-100: 241 245 249;
@@ -29,56 +28,68 @@
   --c-cyan-300: 103 232 249;
   --c-cyan-400: 34 211 238;
   --c-cyan-500: 6 182 212;
+  --c-red-200: 254 202 202;
+  --c-red-300: 252 165 165;
+  --c-red-400: 248 113 113;
+  --c-emerald-200: 167 243 208;
+  --c-emerald-400: 52 211 153;
+  --c-green-300: 134 239 172;
+  --c-green-400: 74 222 128;
+  --c-amber-200: 253 230 138;
+  --c-amber-300: 252 211 77;
+  --c-amber-400: 251 191 36;
+  --c-purple-100: 243 232 255;
+  --c-purple-400: 192 132 252;
+  --c-violet-300: 196 181 253;
+  --c-violet-400: 167 139 250;
+  --c-yellow-200: 254 240 138;
+  --c-yellow-400: 250 204 21;
+  --c-orange-300: 253 186 116;
+  --c-orange-400: 251 146 60;
 }
 
-/* Light ramp. white -> dark so the 80+ `text-white` primary-text usages read on
-   light; solid must-stay-white surfaces (QR code) are pinned to a literal #fff.
-   The slate ramp inverts: high shades (backgrounds) become light, low shades
-   (text) become dark. cyan accents are darkened for contrast on light. */
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
-    color-scheme: light;
-    --c-white: 15 23 42;
-    --c-slate-950: 248 250 252;
-    --c-slate-900: 241 245 249;
-    --c-slate-800: 226 232 240;
-    --c-slate-700: 203 213 225;
-    --c-slate-600: 148 163 184;
-    --c-slate-500: 100 116 139;
-    --c-slate-400: 71 85 105;
-    --c-slate-300: 51 65 85;
-    --c-slate-200: 30 41 59;
-    --c-slate-100: 15 23 42;
-    --c-cyan-500: 14 116 144;
-    --c-cyan-400: 8 145 178;
-    --c-cyan-300: 14 116 144;
-    --c-cyan-200: 103 232 249;
-    --c-cyan-100: 165 243 252;
-  }
-}
-
+/* Light theme. slate: high shades (backgrounds) -> light, low shades (text) ->
+   dark. white -> dark (primary text). cyan -> readable dark teal (it's used
+   heavily as accent text; as a button/icon background the foreground is
+   text-slate-950, which flips to light). Status hues collapse their light text
+   shades to a saturated ~700 value that clears WCAG AA on the #f8fafc page. */
 :root[data-theme="light"] {
   color-scheme: light;
+
   --c-white: 15 23 42;
   --c-slate-950: 248 250 252;
   --c-slate-900: 241 245 249;
   --c-slate-800: 226 232 240;
   --c-slate-700: 203 213 225;
-  --c-slate-600: 148 163 184;
+  --c-slate-600: 100 116 139;
   --c-slate-500: 100 116 139;
   --c-slate-400: 71 85 105;
   --c-slate-300: 51 65 85;
   --c-slate-200: 30 41 59;
   --c-slate-100: 15 23 42;
-  --c-cyan-500: 14 116 144;
-  --c-cyan-400: 8 145 178;
+  --c-cyan-500: 15 94 117;
+  --c-cyan-400: 14 116 144;
   --c-cyan-300: 14 116 144;
-  --c-cyan-200: 103 232 249;
-  --c-cyan-100: 165 243 252;
-}
-
-:root[data-theme="dark"] {
-  color-scheme: dark;
+  --c-cyan-200: 15 94 117;
+  --c-cyan-100: 15 94 117;
+  --c-red-200: 185 28 28;
+  --c-red-300: 185 28 28;
+  --c-red-400: 185 28 28;
+  --c-emerald-200: 4 120 87;
+  --c-emerald-400: 4 120 87;
+  --c-green-300: 21 128 61;
+  --c-green-400: 21 128 61;
+  --c-amber-200: 180 83 9;
+  --c-amber-300: 180 83 9;
+  --c-amber-400: 180 83 9;
+  --c-purple-100: 126 34 206;
+  --c-purple-400: 126 34 206;
+  --c-violet-300: 109 40 217;
+  --c-violet-400: 109 40 217;
+  --c-yellow-200: 161 98 7;
+  --c-yellow-400: 161 98 7;
+  --c-orange-300: 194 65 12;
+  --c-orange-400: 194 65 12;
 }
 
 body {
@@ -90,16 +101,6 @@ body {
   color: #e5e7eb;
 }
 
-/* keep one source of truth for the light page background */
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) body {
-    background:
-      radial-gradient(circle at 15% 10%, rgba(20, 184, 166, 0.1), transparent 28rem),
-      radial-gradient(circle at 85% 0%, rgba(239, 68, 68, 0.06), transparent 24rem),
-      #f8fafc;
-    color: #0f172a;
-  }
-}
 :root[data-theme="light"] body {
   background:
     radial-gradient(circle at 15% 10%, rgba(20, 184, 166, 0.1), transparent 28rem),
@@ -120,13 +121,6 @@ input {
   background-size: 38px 38px;
 }
 
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) .cyber-grid {
-    background-image:
-      linear-gradient(rgba(8, 145, 178, 0.07) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(8, 145, 178, 0.07) 1px, transparent 1px);
-  }
-}
 :root[data-theme="light"] .cyber-grid {
   background-image:
     linear-gradient(rgba(8, 145, 178, 0.07) 1px, transparent 1px),

@@ -11,12 +11,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
-        {/* Apply the saved theme before first paint to avoid a light/dark flash.
-            "system" stores nothing and falls through to prefers-color-scheme. */}
+        {/* Resolve the active theme before first paint (no flash): explicit
+            saved choice, else the device's prefers-color-scheme. Always writes
+            data-theme so the CSS in globals.css needs no media queries. */}
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "(function(){try{var t=localStorage.getItem('theme');if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();"
+              "(function(){try{var t=localStorage.getItem('theme');var d=(t==='light'||t==='dark')?t:((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');document.documentElement.setAttribute('data-theme',d);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();"
           }}
         />
       </head>
