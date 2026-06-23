@@ -137,94 +137,125 @@ export async function POST(request: NextRequest) {
       asResponse: true
     });
 
-    // ── Deception Mode AI Gate ──────────────────────────────────────────────
-    // After a successful credential check, run Gemini threat analysis.
-    // If confidence_score >= DECEPTION_THRESHOLD, silently divert into honeypot.
-    const location = await resolveIpLocation(ip);
-    const ua = request.headers.get("user-agent") ?? undefined;
-
-    const aiResult = await analyzeThreatWithGemini({
-      event: {
-        type: "LOGIN_SUCCESS",
-        email: body.email,
-        ip,
-        userAgent: ua,
-        device: userAgentToDevice(ua),
-        location,
-        timestamp: new Date().toISOString()
-      }
-    });
-
-    const isBotVelocity = typeof body.focusToSubmitMs === "number" && body.focusToSubmitMs > 0 && body.focusToSubmitMs < 1500;
-    const isAttackerOverride = 
-      body.email?.toLowerCase().includes("attacker") || 
-      body.email === "achintyak.mca25@rvce.edu.in" || 
-      isBotVelocity;
-    const confidenceScore = isAttackerOverride ? 100 : aiResult.confidence_score;
-
-    if (confidenceScore >= DECEPTION_THRESHOLD) {
-      // Generate a unique honeypot session token
-      const honeyToken = randomUUID();
-
-      const triggerDetails = isBotVelocity 
-        ? `Bot velocity detected: Login completed in ${body.focusToSubmitMs}ms (below 1500ms threshold). Routed to shadow environment.`
-        : `Attacker intercepted: AI confidence ${confidenceScore}%. Login by ${body.email ?? "unknown"} from ${ip} routed to shadow environment.`;
-
-      // Log the interception to the security event log for admin visibility
+    // If the credential check itself failed, better-auth returns a non-2xx
+    // Response whose body is { message, code } — note the field is `message`,
+    // NOT `error`. Surface that message and skip the (expensive) threat
+    // analysis, which is only meaningful for a genuine login. Without this the
+    // client fell back to a generic "Login failed." for every wrong password.
+    if (!signInResponse.ok) {
       await recordSecurityEvent({
-        type: "DECEPTION_MODE_ACTIVATED",
-        severity: "HIGH",
-        details: triggerDetails,
+        type: "LOGIN_FAILURE",
+        severity: "MEDIUM",
+        details: `Failed login attempt for email: ${body.email}`,
         ip,
-        metadata: {
-          email: body.email,
-          aiConfidenceScore: confidenceScore,
-          aiSummary: isBotVelocity ? "Automated bot login velocity timing anomaly." : aiResult.incident_summary,
-          recommendedAction: isBotVelocity ? "Route to shadow environment (Deception Mode)" : aiResult.recommended_action,
-          device: userAgentToDevice(ua),
-          location
-        },
-        runAi: false
+        metadata: { email: body.email }
       });
-
-      // Log the attacker's first action in the honey log
-      await logHoneyAction({
-        sessionToken: honeyToken,
-        userEmail: body.email ?? "unknown",
-        ipAddress: ip,
-        userAgent: ua,
-        location,
-        action: "LOGIN",
-        payload: { email: body.email },
-        aiConfidenceScore: aiResult.confidence_score,
-        aiSummary: aiResult.incident_summary
-      });
-
-      // Return a response that looks like a successful login but sets a deception cookie
-      // and NO real better-auth session cookie so the real account is untouched.
-      const deceptionResponse = NextResponse.json(
-        { ok: true, deceptionMode: true },
-        { status: 200 }
+      const failBody = (await signInResponse.json().catch(() => null)) as
+        | { message?: string; error?: string }
+        | null;
+      return NextResponse.json(
+        { error: failBody?.message ?? failBody?.error ?? "Invalid email or password." },
+        { status: signInResponse.status }
       );
-      deceptionResponse.cookies.set({
-        name: DECEPTION_COOKIE,
-        value: honeyToken,
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        maxAge: DECEPTION_TTL_SEC
-      });
-      // Encode email in a second httpOnly cookie so the honeypot page can personalise
-      deceptionResponse.cookies.set({
-        name: "sentinel-honey-email",
-        value: body.email ?? "unknown",
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        maxAge: DECEPTION_TTL_SEC
-      });
-      return deceptionResponse;
     }
+
+    // ── Deception Mode AI Gate ──────────────────────────────────────────────
+    // Credential check passed. Everything below is best-effort: if any of it
+    // throws (Gemini, IP geolocation, DB), we must NOT convert a valid login
+    // into a failure — fall through and return the real sign-in response.
+    try {
+      const location = await resolveIpLocation(ip);
+      const ua = request.headers.get("user-agent") ?? undefined;
+
+      const aiResult = await analyzeThreatWithGemini({
+        event: {
+          type: "LOGIN_SUCCESS",
+          email: body.email,
+          ip,
+          userAgent: ua,
+          device: userAgentToDevice(ua),
+          location,
+          timestamp: new Date().toISOString()
+        }
+      });
+
+      const isBotVelocity = typeof body.focusToSubmitMs === "number" && body.focusToSubmitMs > 0 && body.focusToSubmitMs < 1500;
+      const isAttackerOverride =
+        body.email?.toLowerCase().includes("attacker") ||
+        body.email === "achintyak.mca25@rvce.edu.in" ||
+        isBotVelocity;
+      const confidenceScore = isAttackerOverride ? 100 : aiResult.confidence_score;
+
+      if (confidenceScore >= DECEPTION_THRESHOLD) {
+        // Generate a unique honeypot session token
+        const honeyToken = randomUUID();
+
+        const triggerDetails = isBotVelocity
+          ? `Bot velocity detected: Login completed in ${body.focusToSubmitMs}ms (below 1500ms threshold). Routed to shadow environment.`
+          : `Attacker intercepted: AI confidence ${confidenceScore}%. Login by ${body.email ?? "unknown"} from ${ip} routed to shadow environment.`;
+
+        // Log the interception to the security event log for admin visibility
+        await recordSecurityEvent({
+          type: "DECEPTION_MODE_ACTIVATED",
+          severity: "HIGH",
+          details: triggerDetails,
+          ip,
+          metadata: {
+            email: body.email,
+            aiConfidenceScore: confidenceScore,
+            aiSummary: isBotVelocity ? "Automated bot login velocity timing anomaly." : aiResult.incident_summary,
+            recommendedAction: isBotVelocity ? "Route to shadow environment (Deception Mode)" : aiResult.recommended_action,
+            device: userAgentToDevice(ua),
+            location
+          },
+          runAi: false
+        });
+
+        // Log the attacker's first action in the honey log
+        await logHoneyAction({
+          sessionToken: honeyToken,
+          userEmail: body.email ?? "unknown",
+          ipAddress: ip,
+          userAgent: ua,
+          location,
+          action: "LOGIN",
+          payload: { email: body.email },
+          aiConfidenceScore: aiResult.confidence_score,
+          aiSummary: aiResult.incident_summary
+        });
+
+        // Return a response that looks like a successful login but sets a deception cookie
+        // and NO real better-auth session cookie so the real account is untouched.
+        const deceptionResponse = NextResponse.json(
+          { ok: true, deceptionMode: true },
+          { status: 200 }
+        );
+        deceptionResponse.cookies.set({
+          name: DECEPTION_COOKIE,
+          value: honeyToken,
+          httpOnly: true,
+          sameSite: "lax",
+          path: "/",
+          maxAge: DECEPTION_TTL_SEC
+        });
+        // Encode email in a second httpOnly cookie so the honeypot page can personalise
+        deceptionResponse.cookies.set({
+          name: "sentinel-honey-email",
+          value: body.email ?? "unknown",
+          httpOnly: true,
+          sameSite: "lax",
+          path: "/",
+          maxAge: DECEPTION_TTL_SEC
+        });
+        return deceptionResponse;
+      }
+    } catch (analysisError) {
+      console.error(
+        "[login] post-auth threat analysis failed (login still succeeds):",
+        analysisError
+      );
+    }
+
     // ── Normal login path ────────────────────────────────────────────────────
     return expireTrustDeviceCookies(signInResponse);
     // Note: when 2FA is enabled, better-auth returns 200 with

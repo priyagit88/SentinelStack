@@ -132,8 +132,13 @@ export function LoginForm() {
     });
 
     if (!response.ok) {
-      const data = (await response.json().catch(() => null)) as { error?: string } | null;
-      setError(data?.error ?? "Login failed.");
+      // better-auth failures come back as { message, code }; our own gates
+      // (captcha, etc.) use { error }. Read both so the user sees the real
+      // reason instead of a generic "Login failed."
+      const data = (await response.json().catch(() => null)) as
+        | { error?: string; message?: string }
+        | null;
+      setError(data?.error ?? data?.message ?? "Login failed.");
       setPending(false);
       return;
     }

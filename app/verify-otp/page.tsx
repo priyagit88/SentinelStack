@@ -68,14 +68,16 @@ function VerifyOtpContent() {
     setError("");
 
     try {
+      // Must use verifyEmail (POST /email-otp/verify-email): it consumes the OTP
+      // AND sets user.emailVerified = true. checkVerificationOtp only validates
+      // the code without marking the email verified — using it left accounts
+      // stuck on "email not verified" at login despite a correct OTP.
       const client = authClient as any;
       let res;
-      if (client.emailOtp?.checkVerificationOtp) {
-        res = await client.emailOtp.checkVerificationOtp({ email: email as string, otp: fullCode, type: "email-verification" });
-      } else if (client.emailOtp?.verifyEmail) {
+      if (client.emailOtp?.verifyEmail) {
         res = await client.emailOtp.verifyEmail({ email: email as string, otp: fullCode });
       } else if (client.emailOTP?.verifyEmail) {
-         res = await client.emailOTP.verifyEmail({ email: email as string, otp: fullCode });
+        res = await client.emailOTP.verifyEmail({ email: email as string, otp: fullCode });
       } else {
         throw new Error("OTP verification method not found");
       }

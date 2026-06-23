@@ -116,8 +116,10 @@ export function RegisterForm() {
     });
 
     if (!response.ok) {
-      const data = (await response.json().catch(() => null)) as { error?: string } | null;
-      setError(data?.error ?? "Registration failed.");
+      const data = (await response.json().catch(() => null)) as
+        | { error?: string; message?: string }
+        | null;
+      setError(data?.error ?? data?.message ?? "Registration failed.");
       setPending(false);
       return;
     }
