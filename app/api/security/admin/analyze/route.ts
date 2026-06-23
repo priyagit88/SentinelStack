@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
         severity: log.severity,
         details: log.details,
         ip: log.ip,
+        timestamp: (log.timestamp ?? new Date()).toString(),
         metadata: log.metadata ?? {}
       },
       userId: log.userId?.toString()
