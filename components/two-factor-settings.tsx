@@ -266,7 +266,7 @@ export function TwoFactorSettings({ hasPassword = true }: { hasPassword?: boolea
               setError("");
               setPhase("choose");
             }}
-            className="flex shrink-0 items-center gap-2 rounded-lg bg-cyan-400 px-4 py-2.5 text-sm font-bold text-slate-950 transition-all hover:bg-cyan-300 hover:scale-[1.02]"
+            className="btn-slide shrink-0"
           >
             {anyMfa ? "Add MFA method" : "Enable MFA"}
             <ChevronRight className="h-4 w-4" />
@@ -434,7 +434,7 @@ export function TwoFactorSettings({ hasPassword = true }: { hasPassword?: boolea
               <button
                 type="submit"
                 disabled={passkeyLoading}
-                className="flex-1 rounded-lg bg-cyan-400 py-3 text-sm font-bold text-slate-950 hover:bg-cyan-300 disabled:opacity-50"
+                className="btn-slide flex-1"
               >
                 {passkeyLoading ? (
                   <Loader2 className="mx-auto h-4 w-4 animate-spin" />
@@ -481,7 +481,7 @@ export function TwoFactorSettings({ hasPassword = true }: { hasPassword?: boolea
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 rounded-lg bg-cyan-400 py-3 text-sm font-bold text-slate-950 hover:bg-cyan-300 disabled:opacity-50"
+                className="btn-slide flex-1"
               >
                 {loading ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : "Continue"}
               </button>
@@ -514,7 +514,7 @@ export function TwoFactorSettings({ hasPassword = true }: { hasPassword?: boolea
                 secret and do not share it.
               </p>
 
-              <div className="inline-block overflow-hidden rounded-xl bg-white p-4 shadow-2xl ring-8 ring-white/5">
+              <div className="inline-block overflow-hidden rounded-xl bg-[#ffffff] p-4 shadow-2xl ring-8 ring-white/5">
                 {qrImage ? (
                   <img src={qrImage} alt="Setup QR" className="h-48 w-48" />
                 ) : (
@@ -558,7 +558,7 @@ export function TwoFactorSettings({ hasPassword = true }: { hasPassword?: boolea
                 <button
                   type="submit"
                   disabled={loading || code.length !== 6}
-                  className="w-full rounded-xl bg-cyan-400 py-4 font-mono text-sm font-bold text-slate-950 transition-all hover:bg-cyan-300 disabled:opacity-50"
+                  className="btn-slide w-full"
                 >
                   {loading ? (
                     <Loader2 className="mx-auto h-5 w-5 animate-spin" />
@@ -614,7 +614,7 @@ export function TwoFactorSettings({ hasPassword = true }: { hasPassword?: boolea
             </button>
             <button
               onClick={reset}
-              className="rounded-lg bg-cyan-400 px-8 py-3 text-sm font-bold text-slate-950 hover:bg-cyan-300"
+              className="btn-slide"
             >
               Finish Setup
             </button>

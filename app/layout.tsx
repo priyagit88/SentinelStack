@@ -10,6 +10,17 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        {/* Resolve the active theme before first paint (no flash): explicit
+            saved choice, else the device's prefers-color-scheme. Always writes
+            data-theme so the CSS in globals.css needs no media queries. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var t=localStorage.getItem('theme');var d=(t==='light'||t==='dark')?t:((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light');document.documentElement.setAttribute('data-theme',d);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();"
+          }}
+        />
+      </head>
       <body>
         <div className="min-h-screen cyber-grid">
           <header className="border-b border-cyan-300/10 bg-slate-950/70 backdrop-blur">

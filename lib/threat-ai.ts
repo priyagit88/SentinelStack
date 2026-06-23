@@ -3,14 +3,20 @@ import { connectMongoose } from "@/lib/db";
 import { Session } from "@/lib/models/session";
 
 export type ThreatAiAnalysis = {
-  incident_summary: string;
+  who: string;
+  what: string;
+  when: string;
   confidence_score: number;
   recommended_action: string;
+  // Retained for backward-compat with events analyzed before the structured
+  // who/what/when fields existed; the UI falls back to it when present.
+  incident_summary?: string;
 };
 
 const fallbackAnalysis: ThreatAiAnalysis = {
-  incident_summary:
-    "AI analysis is unavailable, so this incident was classified by deterministic SentinelStack heuristics. Review the anomalous IP, location, device fingerprint, and recent login baseline before taking account action.",
+  who: "Actor could not be resolved by AI; see the source IP and account email on the event.",
+  what: "AI analysis is unavailable, so this incident was classified by deterministic SentinelStack heuristics.",
+  when: "See the event timestamp. Review for off-hours access or rapid repeated attempts.",
   confidence_score: 72,
   recommended_action: "Trigger Step-up Multi-Factor Authentication Challenge"
 };
@@ -44,7 +50,7 @@ export async function analyzeThreatWithGemini(args: {
                   role:
                     "Act as a Tier 3 Cyber Security Operations Center Specialist evaluating credential anomalies.",
                   task:
-                    "Assess whether this suspicious login resembles account takeover, VPN location jumping, shared-device behavior, or benign baseline drift. Consider IP, location, browser footprint, velocity, and the user's past five sessions.",
+                    "Assess whether this event resembles account takeover, VPN location jumping, shared-device behavior, or benign baseline drift. Consider IP, location, browser footprint, velocity, and the user's past five sessions. Summarize for a SOC analyst as four concise fields — who (the actor: account email, source IP and geolocation), what (what action occurred and why it is or isn't risky), when (the time it occurred plus any timing anomaly such as off-hours access, rapid retries, or impossible travel), and a recommended_action.",
                   suspicious_event: args.event,
                   recent_successful_login_history: history
                 },
@@ -60,10 +66,20 @@ export async function analyzeThreatWithGemini(args: {
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            incident_summary: {
+            who: {
               type: Type.STRING,
               description:
-                "Granular explanation analyzing behavior, browser footprints, historical matching, and takeover likelihood."
+                "The actor in one sentence: account email/user, source IP, and geolocation (city/country) if known."
+            },
+            what: {
+              type: Type.STRING,
+              description:
+                "What happened in one sentence and why it is or isn't risky (takeover, location jump, shared device, benign drift)."
+            },
+            when: {
+              type: Type.STRING,
+              description:
+                "When it occurred plus any timing anomaly (off-hours access, rapid retries, impossible-travel velocity). One sentence."
             },
             confidence_score: {
               type: Type.INTEGER,
@@ -77,7 +93,7 @@ export async function analyzeThreatWithGemini(args: {
                 "Clear SOC action such as force password reset, step-up MFA, revoke sessions, or benign baseline update."
             }
           },
-          required: ["incident_summary", "confidence_score", "recommended_action"]
+          required: ["who", "what", "when", "confidence_score", "recommended_action"]
         }
       }
     });
@@ -87,7 +103,9 @@ export async function analyzeThreatWithGemini(args: {
 
     const parsed = JSON.parse(text) as ThreatAiAnalysis;
     return {
-      incident_summary: String(parsed.incident_summary),
+      who: String(parsed.who ?? ""),
+      what: String(parsed.what ?? parsed.incident_summary ?? ""),
+      when: String(parsed.when ?? ""),
       confidence_score: Math.min(100, Math.max(0, Number(parsed.confidence_score))),
       recommended_action: String(parsed.recommended_action)
     };

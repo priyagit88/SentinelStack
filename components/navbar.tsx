@@ -3,6 +3,7 @@
 import { useRouter, usePathname } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import PillNav, { type PillNavItem } from "./PillNav";
+import { ThemeToggle } from "./theme-toggle";
 
 export function Navbar() {
   const { data: session, isPending } = authClient.useSession();
@@ -30,7 +31,10 @@ export function Navbar() {
       ];
 
   return (
-    <div className="mx-auto flex max-w-7xl items-center justify-center px-5 py-3">
+    // spacer + nav + toggle with justify-between keeps the pills centered
+    // while the theme switcher sits on the right.
+    <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3">
+      <span aria-hidden className="h-9 w-9 shrink-0" />
       <PillNav
         logo="/logo.svg"
         logoAlt="SentinelStack"
@@ -42,6 +46,7 @@ export function Navbar() {
         hoveredPillTextColor="#38bdf8"
         initialLoadAnimation={false}
       />
+      <ThemeToggle />
     </div>
   );
 }
