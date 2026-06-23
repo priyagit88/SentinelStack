@@ -177,10 +177,7 @@ export function RegisterForm() {
         </div>
       </label>
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
-      <button
-        disabled={isPending}
-        className="mt-2 inline-flex items-center justify-center gap-2 rounded-md bg-cyan-300 px-5 py-3 text-sm font-semibold text-slate-950 disabled:opacity-60"
-      >
+      <button disabled={isPending} className="btn-slide mt-2 w-full">
         {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
         Register Securely
       </button>

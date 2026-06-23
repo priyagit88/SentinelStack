@@ -95,7 +95,7 @@ export function TwoFactorChallenge() {
       <button
         type="submit"
         disabled={loading || code.length < 6}
-        className="group relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-xl bg-cyan-400 px-5 py-4 text-base font-bold text-slate-950 transition-all hover:bg-cyan-300 disabled:opacity-50"
+        className="group btn-slide w-full"
       >
         {loading ? (
           <Loader2 className="h-5 w-5 animate-spin" />

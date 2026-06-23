@@ -159,7 +159,7 @@ function VerifyOtpContent() {
       <button
         onClick={submitOtp}
         disabled={loading || code.join("").length !== 6}
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-purple-500/20 px-4 py-3 font-semibold text-purple-100 ring-1 ring-inset ring-purple-500/40 hover:bg-purple-500/30 disabled:opacity-50 transition-all"
+        className="btn-slide w-full"
       >
         {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Verify Code"}
       </button>

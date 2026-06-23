@@ -127,6 +127,68 @@ input {
     linear-gradient(90deg, rgba(8, 145, 178, 0.07) 1px, transparent 1px);
 }
 
+/* Primary CTA: white pill that fills dark on hover (slide-in from left) with the
+   label flipping color. Ported from a styled-components snippet to a reusable
+   class. Theme-aware so it stays high-contrast: light button in dark mode, dark
+   button in light mode. Add layout utilities (w-full, inline-flex…) alongside. */
+.btn-slide {
+  --btn-bg: #e8e8e8;
+  --btn-fg: #212121;
+  --btn-fill: #212121;
+  --btn-fg-hover: #e8e8e8;
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 13px 25px;
+  border: unset;
+  border-radius: 15px;
+  color: var(--btn-fg);
+  background: var(--btn-bg);
+  font-weight: 800;
+  font-size: 16px;
+  box-shadow: 4px 8px 19px -3px rgba(0, 0, 0, 0.27);
+  transition: color 250ms;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.btn-slide::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0;
+  border-radius: 15px;
+  background-color: var(--btn-fill);
+  z-index: -1;
+  transition: width 250ms;
+}
+
+.btn-slide:hover:not(:disabled) {
+  color: var(--btn-fg-hover);
+}
+
+.btn-slide:hover:not(:disabled)::before {
+  width: 100%;
+}
+
+.btn-slide:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+:root[data-theme="light"] .btn-slide {
+  --btn-bg: #1e293b;
+  --btn-fg: #f1f5f9;
+  --btn-fill: #f1f5f9;
+  --btn-fg-hover: #1e293b;
+  box-shadow: 0 6px 16px -6px rgba(15, 23, 42, 0.45);
+}
+
 .pulse-danger {
   animation: pulse-danger 1.8s ease-in-out infinite;
 }
