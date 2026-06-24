@@ -142,7 +142,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const receipt = await anchorSecurityLog(userId, action, riskScore);
+    // Admin verify is an explicit action — wait for the mined receipt so the
+    // returned block/gas details reflect a confirmed anchor.
+    const receipt = await anchorSecurityLog(userId, action, riskScore, {
+      waitForReceipt: true
+    });
 
     return NextResponse.json({
       success: true,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ethers } from "ethers";
-import contractArtifact from "../../../../artifacts/contracts/SecurityLogRegistry.sol/SecurityLogRegistry.json";
+// Hardcoded ABI (not the gitignored Hardhat artifact) so this builds on Vercel.
+import { SecurityLogRegistryABI } from "@/lib/abis/SecurityLogRegistry";
 
 export const runtime = "nodejs";
 
@@ -21,7 +22,7 @@ export async function GET() {
     }
 
     const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, { staticNetwork: true });
-    const contract = new ethers.Contract(contractAddress!, contractArtifact.abi, provider);
+    const contract = new ethers.Contract(contractAddress!, SecurityLogRegistryABI, provider);
 
     const logCount = await contract.getLogCount();
     const logs = [];

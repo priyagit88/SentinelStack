@@ -1,5 +1,7 @@
 import { ethers } from "ethers";
-import contractArtifact from "../artifacts/contracts/SecurityLogRegistry.sol/SecurityLogRegistry.json";
+// Use a hardcoded ABI (not the gitignored Hardhat artifact) so `next build`
+// works on Vercel, which never runs `hardhat compile`.
+import { SecurityLogRegistryABI } from "./abis/SecurityLogRegistry";
 
 const rpcUrl = process.env.BLOCKCHAIN_RPC_URL || "http://127.0.0.1:8545";
 const operatorPrivateKey = process.env.BLOCKCHAIN_OPERATOR_PRIVATE_KEY;
@@ -7,10 +9,13 @@ const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
 
 interface AnchorReceipt {
   transactionHash: string;
-  blockNumber: number;
-  gasUsed: string;
-  from: string;
-  to: string;
+  // "pending" = tx submitted but we didn't block on confirmation (serverless-safe);
+  // "confirmed" = mined, with block/gas details below.
+  status: "pending" | "confirmed";
+  blockNumber?: number;
+  gasUsed?: string;
+  from?: string;
+  to?: string;
 }
 
 interface BlockchainLogRecord {
@@ -30,7 +35,8 @@ interface BlockchainLogRecord {
 export async function anchorSecurityLog(
   userId: string,
   action: string,
-  riskScore: string
+  riskScore: string,
+  options: { waitForReceipt?: boolean } = {}
 ): Promise<AnchorReceipt> {
   try {
     if (!operatorPrivateKey) {
@@ -42,19 +48,30 @@ export async function anchorSecurityLog(
 
     const provider = new ethers.JsonRpcProvider(rpcUrl);
     const wallet = new ethers.Wallet(operatorPrivateKey, provider);
-    const contract = new ethers.Contract(contractAddress, contractArtifact.abi, wallet);
+    const contract = new ethers.Contract(contractAddress, SecurityLogRegistryABI, wallet);
 
     console.log(`[Web3 Logger] Initiating write transaction to anchor: User=${userId}, Action=${action}, Risk=${riskScore}`);
 
     const tx = await contract.emitLog(userId, action, riskScore);
-    const receipt = await tx.wait();
-
-    // Log to Next.js terminal console.logs exactly as requested
     console.log(`Transaction Hash: ${tx.hash}`);
-    console.log(`Gas Used: ${receipt.gasUsed.toString()}`);
 
+    // Default: return as soon as the tx is broadcast. Awaiting tx.wait() on a
+    // public testnet can take several seconds and may exceed a Vercel serverless
+    // function's timeout — so confirmation is opt-in (admin forensic verify).
+    if (!options.waitForReceipt) {
+      return {
+        transactionHash: tx.hash,
+        status: "pending",
+        from: wallet.address,
+        to: contractAddress
+      };
+    }
+
+    const receipt = await tx.wait();
+    console.log(`Gas Used: ${receipt.gasUsed.toString()}`);
     return {
       transactionHash: tx.hash,
+      status: "confirmed",
       blockNumber: receipt.blockNumber,
       gasUsed: receipt.gasUsed.toString(),
       from: receipt.from,
@@ -76,7 +93,7 @@ export async function getBlockchainLogCount(): Promise<number> {
       throw new Error("NEXT_PUBLIC_CONTRACT_ADDRESS environment variable is missing.");
     }
     const provider = new ethers.JsonRpcProvider(rpcUrl);
-    const contract = new ethers.Contract(contractAddress, contractArtifact.abi, provider);
+    const contract = new ethers.Contract(contractAddress, SecurityLogRegistryABI, provider);
     const count = await contract.getLogCount();
     return Number(count);
   } catch (error) {
@@ -96,7 +113,7 @@ export async function getBlockchainLog(index: number): Promise<BlockchainLogReco
       throw new Error("NEXT_PUBLIC_CONTRACT_ADDRESS environment variable is missing.");
     }
     const provider = new ethers.JsonRpcProvider(rpcUrl);
-    const contract = new ethers.Contract(contractAddress, contractArtifact.abi, provider);
+    const contract = new ethers.Contract(contractAddress, SecurityLogRegistryABI, provider);
     const result = await contract.getLog(index);
     return {
       userId: result[0],
