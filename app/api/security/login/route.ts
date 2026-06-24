@@ -3,7 +3,7 @@ import { APIError } from "better-auth/api";
 import { auth } from "@/lib/auth";
 import { recordSecurityEvent, getClientIp, resolveIpLocation, userAgentToDevice } from "@/lib/security";
 import { verifyCaptcha } from "@/lib/captcha";
-import { analyzeThreatWithGemini } from "@/lib/threat-ai";
+import { analyzeThreat } from "@/lib/threat-ai";
 import {
   DECEPTION_COOKIE,
   DECEPTION_THRESHOLD,
@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
 
     // ── Deception Mode AI Gate ──────────────────────────────────────────────
     // Credential check passed. Everything below is best-effort: if any of it
-    // throws (Gemini, IP geolocation, DB), we must NOT convert a valid login
+    // throws (Groq, IP geolocation, DB), we must NOT convert a valid login
     // into a failure — fall through and return the real sign-in response.
     try {
       const location = await resolveIpLocation(ip);
@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
       }
       const ua = request.headers.get("user-agent") ?? undefined;
 
-      const aiResult = await analyzeThreatWithGemini({
+      const aiResult = await analyzeThreat({
         event: {
           type: "LOGIN_SUCCESS",
           email: body.email,

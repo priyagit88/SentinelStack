@@ -1477,7 +1477,7 @@ function LogCard({ log: initialLog, isNew }: { log: SecurityLog; isNew: boolean 
           <div className="mb-2.5 flex items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5 text-cyan-400" />
             <p className="text-[11px] font-bold uppercase tracking-wider text-cyan-400">
-              Gemini Insight
+              AI Insight
             </p>
             {typeof log.aiAnalysis.confidence_score === "number" && (
               <span className="ml-auto rounded-full bg-cyan-500/15 px-2 py-0.5 text-[10px] font-semibold text-cyan-300 ring-1 ring-inset ring-cyan-400/20">
@@ -1515,7 +1515,7 @@ function LogCard({ log: initialLog, isNew }: { log: SecurityLog; isNew: boolean 
         <div className="mt-3 flex items-center gap-3 rounded-md border border-cyan-300/5 bg-slate-900/50 p-4">
           <Loader2 className="h-4 w-4 animate-spin text-cyan-500" />
           <p className="text-xs animate-pulse font-medium text-slate-500">
-            Gemini is analyzing behavioral patterns...
+            AI is analyzing behavioral patterns...
           </p>
         </div>
       ) : log.severity === "LOW" && !log.aiAnalysis ? (
@@ -1541,7 +1541,7 @@ function LogCard({ log: initialLog, isNew }: { log: SecurityLog; isNew: boolean 
   );
 }
 
-// One labeled line in the Gemini insight (Who / What / When). Hidden when empty.
+// One labeled line in the AI insight (Who / What / When). Hidden when empty.
 function InsightRow({ label, value }: { label: string; value?: string }) {
   if (!value) return null;
   return (
