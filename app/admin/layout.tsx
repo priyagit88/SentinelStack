@@ -21,9 +21,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </span>
           )}
           <button
-            onClick={() => {
+            onClick={async () => {
               disconnect();
-              document.cookie = "admin_wallet=; path=/; max-age=0";
+              // admin_session is httpOnly — clear it server-side.
+              await fetch("/api/admin/verify-wallet", { method: "DELETE" }).catch(() => {});
               window.location.href = "/admin/connect";
             }}
             className="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1 rounded hover:bg-red-500/10"

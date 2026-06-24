@@ -34,25 +34,21 @@ async function main() {
   console.log(`Contract Address: ${address}`);
 
   console.log("\nSeeding initial forensic logs to the blockchain registry...");
-  
-  let nonce = await wallet.getNonce();
-  console.log(`Current wallet nonce: ${nonce}`);
 
-  const tx1 = await contract.emitLog("user_001", "EXPIRED_SESSION_REPLAY", "MEDIUM", { nonce: nonce++ });
-  await tx1.wait();
-  console.log("Seeded Log #0: user_001 (EXPIRED_SESSION_REPLAY, MEDIUM)");
-
-  const tx2 = await contract.emitLog("user_002", "SQL_INJECTION_SQLI", "CRITICAL", { nonce: nonce++ });
-  await tx2.wait();
-  console.log("Seeded Log #1: user_002 (SQL_INJECTION_SQLI, CRITICAL)");
-
-  const tx3 = await contract.emitLog("user_003", "API_SECRET_LEAK", "CRITICAL", { nonce: nonce++ });
-  await tx3.wait();
-  console.log("Seeded Log #2: user_003 (API_SECRET_LEAK, CRITICAL) - [To be OMITTED in DB]");
-
-  const tx4 = await contract.emitLog("user_004", "PRIVILEGE_ESCALATION", "HIGH", { nonce: nonce++ });
-  await tx4.wait();
-  console.log("Seeded Log #3: user_004 (PRIVILEGE_ESCALATION, HIGH) - [To be MUTATED in DB]");
+  // Let ethers derive the nonce per tx (awaiting each sequentially). Manual
+  // nonce bookkeeping collided with the deploy tx and caused REPLACEMENT_UNDERPRICED.
+  const seeds = [
+    ["user_001", "EXPIRED_SESSION_REPLAY", "MEDIUM"],
+    ["user_002", "SQL_INJECTION_SQLI", "CRITICAL"],
+    ["user_003", "API_SECRET_LEAK", "CRITICAL"],
+    ["user_004", "PRIVILEGE_ESCALATION", "HIGH"]
+  ];
+  for (let i = 0; i < seeds.length; i++) {
+    const [user, action, risk] = seeds[i];
+    const tx = await contract.emitLog(user, action, risk);
+    await tx.wait();
+    console.log(`Seeded Log #${i}: ${user} (${action}, ${risk})`);
+  }
 
   console.log("Seeding complete!\n");
 

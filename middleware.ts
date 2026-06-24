@@ -42,10 +42,17 @@ function stripTrustDeviceFromCookieHeader(cookieHeader: string): string {
 export function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
-  // ── Wallet-Based Admin Protection ────────────────────────────────────
+  // ── Admin Protection (cheap presence gate) ───────────────────────────
+  // Redirect to /admin/connect when neither an admin wallet session nor a
+  // logged-in user session cookie is present. This is only a UX gate — the
+  // /admin page itself does the authoritative check: it HMAC-verifies the
+  // admin_session token (unforgeable) or the ADMIN_EMAILS session.
   if (path.startsWith("/admin") && path !== "/admin/connect") {
-    const adminWallet = request.cookies.get("admin_wallet")?.value;
-    if (!adminWallet) {
+    const hasWalletSession = request.cookies.get("admin_session")?.value;
+    const hasUserSession =
+      request.cookies.get("better-auth.session_token")?.value ||
+      request.cookies.get("__Secure-better-auth.session_token")?.value;
+    if (!hasWalletSession && !hasUserSession) {
       return NextResponse.redirect(new URL("/admin/connect", request.url));
     }
   }

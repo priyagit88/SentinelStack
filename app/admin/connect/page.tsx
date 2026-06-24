@@ -1,9 +1,9 @@
 "use client";
 
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount, useReadContract, useWriteContract } from "wagmi";
+import { useAccount, useReadContract, useSignMessage, useWriteContract } from "wagmi";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { SentinelAccessABI } from "@/lib/abis/SentinelAccess";
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_SENTINEL_ACCESS_CONTRACT as `0x${string}`;
@@ -11,32 +11,60 @@ const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_SENTINEL_ACCESS_CONTRACT as `0x
 export default function AdminConnectPage() {
   const { address, isConnected } = useAccount();
   const router = useRouter();
-  const [isVerifying, setIsVerifying] = useState(false);
+  const { signMessageAsync } = useSignMessage();
+  const { writeContract } = useWriteContract();
+  const [status, setStatus] = useState<"idle" | "verifying">("idle");
+  const [error, setError] = useState("");
 
-  const { data: isAdmin } = useReadContract({
+  const { data: isAdmin, isLoading: roleLoading } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: SentinelAccessABI,
     functionName: "isAdmin",
     args: address ? [address] : undefined,
-    query: { enabled: !!address },
+    query: { enabled: !!address }
   });
 
-  const { writeContract } = useWriteContract();
+  // Sign a fresh message (proves wallet ownership) → server verifies the
+  // signature AND the on-chain ADMIN_ROLE before issuing the session cookie.
+  async function handleVerify() {
+    if (!address) return;
+    setError("");
+    setStatus("verifying");
+    try {
+      const message = `SentinelStack Admin Authentication\n\nAddress: ${address}\nIssued At: ${new Date().toISOString()}`;
+      const signature = await signMessageAsync({ message });
 
-  useEffect(() => {
-    if (isConnected && isAdmin) {
-      setIsVerifying(true);
-      // Record login on chain
-      writeContract({
-        address: CONTRACT_ADDRESS,
-        abi: SentinelAccessABI,
-        functionName: "recordLogin",
+      const res = await fetch("/api/admin/verify-wallet", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ message, signature })
       });
-      // Set session cookie and redirect
-      document.cookie = `admin_wallet=${address}; path=/; max-age=900`; // 15 min
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(data?.error ?? "Verification failed.");
+        setStatus("idle");
+        return;
+      }
+
+      // Best-effort on-chain login record (separate tx; access doesn't depend on it).
+      try {
+        writeContract({
+          address: CONTRACT_ADDRESS,
+          abi: SentinelAccessABI,
+          functionName: "recordLogin"
+        });
+      } catch {
+        /* ignore — cookie is already set */
+      }
+
       router.push("/admin");
+      router.refresh();
+    } catch (err) {
+      const e = err as { shortMessage?: string; message?: string };
+      setError(e.shortMessage || e.message || "Signature rejected.");
+      setStatus("idle");
     }
-  }, [isConnected, isAdmin, address, router, writeContract]);
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -53,22 +81,37 @@ export default function AdminConnectPage() {
 
         <ConnectButton />
 
-        {isConnected && !isAdmin && (
+        {isConnected && roleLoading && (
+          <p className="mt-4 text-slate-400 text-sm">Checking on-chain role…</p>
+        )}
+
+        {isConnected && isAdmin === false && (
           <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
             <p className="text-red-400 text-sm">This wallet does not have admin privileges</p>
           </div>
         )}
 
-        {isConnected && isAdmin && (
-          <div className="mt-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-            <p className="text-green-400 text-sm">Admin verified. Redirecting...</p>
+        {isConnected && isAdmin === true && (
+          <button
+            onClick={handleVerify}
+            disabled={status === "verifying"}
+            className="mt-4 w-full rounded-lg bg-indigo-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-400 disabled:opacity-50 transition-colors"
+          >
+            {status === "verifying" ? "Verifying signature…" : "Sign in & Enter Command Center"}
+          </button>
+        )}
+
+        {error && (
+          <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+            <p className="text-red-400 text-sm">{error}</p>
           </div>
         )}
 
         <div className="mt-6 pt-6 border-t border-slate-800">
           <p className="text-xs text-slate-500">
             Admin access is gated by an on-chain role in the SentinelAccess smart contract.
-            Connect a wallet that has been granted the ADMIN_ROLE.
+            You&apos;ll sign a message to prove ownership; the server verifies both the signature
+            and your ADMIN_ROLE before granting access.
           </p>
         </div>
       </div>
