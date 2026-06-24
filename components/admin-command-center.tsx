@@ -59,6 +59,9 @@ type SecurityLog = {
   ip: string;
   timestamp: string;
   aiAnalysis?: {
+    who?: string;
+    what?: string;
+    when?: string;
     incident_summary?: string;
     confidence_score?: number;
     recommended_action?: string;
@@ -1470,22 +1473,41 @@ function LogCard({ log: initialLog, isNew }: { log: SecurityLog; isNew: boolean 
       <p className="mt-2 text-sm leading-6 text-slate-300">{log.details}</p>
 
       {log.aiAnalysis ? (
-        <div className="mt-3 rounded-md border border-cyan-300/10 bg-cyan-300/5 p-3">
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <Sparkles className="h-3 w-3 text-cyan-400" />
-            <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-400">
-              Gemini Insight • {log.aiAnalysis.confidence_score}% Confidence
+        <div className="mt-3 rounded-lg border border-cyan-300/10 bg-cyan-300/5 p-3.5">
+          <div className="mb-2.5 flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5 text-cyan-400" />
+            <p className="text-[11px] font-bold uppercase tracking-wider text-cyan-400">
+              Gemini Insight
             </p>
+            {typeof log.aiAnalysis.confidence_score === "number" && (
+              <span className="ml-auto rounded-full bg-cyan-500/15 px-2 py-0.5 text-[10px] font-semibold text-cyan-300 ring-1 ring-inset ring-cyan-400/20">
+                {log.aiAnalysis.confidence_score}% confidence
+              </span>
+            )}
           </div>
-          <p className="text-xs leading-5 text-slate-300">
-            {log.aiAnalysis.incident_summary}
-          </p>
-          {log.aiAnalysis.recommended_action && (
-            <div className="mt-2 border-t border-cyan-300/5 pt-2">
-              <p className="text-[10px] font-medium text-cyan-300/70">RECOMMENDED ACTION:</p>
-              <p className="text-[10px] font-semibold text-cyan-200">
-                {log.aiAnalysis.recommended_action}
+
+          <dl className="space-y-2">
+            <InsightRow label="Who" value={log.aiAnalysis.who} />
+            <InsightRow label="What" value={log.aiAnalysis.what} />
+            <InsightRow label="When" value={log.aiAnalysis.when} />
+            {!log.aiAnalysis.who && !log.aiAnalysis.what && log.aiAnalysis.incident_summary && (
+              <p className="text-xs leading-5 text-slate-300">
+                {log.aiAnalysis.incident_summary}
               </p>
+            )}
+          </dl>
+
+          {log.aiAnalysis.recommended_action && (
+            <div className="mt-3 flex items-start gap-2 rounded-md bg-cyan-400/10 px-2.5 py-2 ring-1 ring-inset ring-cyan-400/15">
+              <Shield className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-300" />
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-cyan-300/70">
+                  Recommended action
+                </p>
+                <p className="text-xs font-medium text-cyan-100">
+                  {log.aiAnalysis.recommended_action}
+                </p>
+              </div>
             </div>
           )}
         </div>
@@ -1516,6 +1538,19 @@ function LogCard({ log: initialLog, isNew }: { log: SecurityLog; isNew: boolean 
         </span>
       )}
     </section>
+  );
+}
+
+// One labeled line in the Gemini insight (Who / What / When). Hidden when empty.
+function InsightRow({ label, value }: { label: string; value?: string }) {
+  if (!value) return null;
+  return (
+    <div className="grid grid-cols-[2.75rem_1fr] gap-2.5">
+      <dt className="pt-px text-[10px] font-bold uppercase tracking-wider text-slate-500">
+        {label}
+      </dt>
+      <dd className="text-xs leading-5 text-slate-300">{value}</dd>
+    </div>
   );
 }
 

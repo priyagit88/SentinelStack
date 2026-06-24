@@ -1,8 +1,10 @@
 import { LoginForm } from "@/components/login-form";
+import { RecaptchaScript } from "@/components/recaptcha-script";
 
 export default function LoginPage() {
   return (
     <main className="mx-auto grid min-h-[calc(100vh-65px)] max-w-md items-center px-5 py-12">
+      <RecaptchaScript />
       <section className="rounded-lg border border-cyan-300/15 bg-slate-950/80 p-6 shadow-glow">
         <p className="text-sm font-medium uppercase tracking-[0.24em] text-cyan-300">
           Monitored Access

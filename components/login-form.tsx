@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, LogIn, Eye, EyeOff } from "lucide-react";
+import { Loader2, LogIn, Eye, EyeOff, Fingerprint } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 
 declare global {
@@ -103,6 +103,32 @@ export function LoginForm() {
     await authClient.signIn.social({ provider, callbackURL: "/profile" });
   }
 
+  async function signInWithPasskey() {
+    setError("");
+    setPending(true);
+    try {
+      const { error: err } = await (
+        authClient as unknown as {
+          signIn: { passkey: () => Promise<{ error?: { message?: string } | null }> };
+        }
+      ).signIn.passkey();
+      if (err) {
+        setError(err.message ?? "Passkey sign-in failed.");
+        setPending(false);
+        return;
+      }
+      router.push("/profile");
+      router.refresh();
+    } catch (err) {
+      setError(
+        err instanceof Error && err.name === "NotAllowedError"
+          ? "Passkey sign-in was cancelled."
+          : "No passkey available on this device."
+      );
+      setPending(false);
+    }
+  }
+
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formElement = event.currentTarget;
@@ -137,8 +163,13 @@ export function LoginForm() {
     });
 
     if (!response.ok) {
-      const data = (await response.json().catch(() => null)) as { error?: string } | null;
-      setError(data?.error ?? "Login failed.");
+      // better-auth failures come back as { message, code }; our own gates
+      // (captcha, etc.) use { error }. Read both so the user sees the real
+      // reason instead of a generic "Login failed."
+      const data = (await response.json().catch(() => null)) as
+        | { error?: string; message?: string }
+        | null;
+      setError(data?.error ?? data?.message ?? "Login failed.");
       setPending(false);
       return;
     }
@@ -199,10 +230,7 @@ export function LoginForm() {
         </div>
       </label>
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
-      <button
-        disabled={isPending}
-        className="mt-2 inline-flex items-center justify-center gap-2 rounded-md bg-cyan-300 px-5 py-3 text-sm font-semibold text-slate-950 disabled:opacity-60"
-      >
+      <button disabled={isPending} className="btn-slide mt-2 w-full">
         {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
         Sign In
       </button>
@@ -240,6 +268,16 @@ export function LoginForm() {
           Google
         </button>
       </div>
+
+      <button
+        type="button"
+        onClick={() => void signInWithPasskey()}
+        disabled={isPending}
+        className="inline-flex items-center justify-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white ring-1 ring-inset ring-slate-800 hover:bg-slate-800 hover:ring-slate-700 transition-all disabled:opacity-60"
+      >
+        <Fingerprint className="h-5 w-5 text-cyan-300" />
+        Sign in with a passkey
+      </button>
     </form>
   );
 }
