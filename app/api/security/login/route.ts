@@ -106,21 +106,27 @@ export async function POST(request: NextRequest) {
   // (low score, invalid host, missing token, etc.) into security events.
   const captcha = await verifyCaptcha(body.captchaToken);
   if (!captcha.ok) {
-    await recordSecurityEvent({
-      type: "CAPTCHA_FAILED",
-      severity: "HIGH",
-      details: `Login blocked: reCAPTCHA failed (reason=${captcha.reason ?? "unknown"}, score=${captcha.score ?? "n/a"}).`,
-      ip,
-      metadata: {
-        email: body.email,
-        endpoint: "login",
-        captchaReason: captcha.reason,
-        captchaScore: captcha.score,
-        captchaAction: captcha.action,
-        captchaErrorCodes: captcha.errorCodes
-      },
-      runAi: false
-    });
+    // Best-effort: a DB outage while logging the CAPTCHA failure must not turn
+    // a blocked login into an empty-body 500.
+    try {
+      await recordSecurityEvent({
+        type: "CAPTCHA_FAILED",
+        severity: "HIGH",
+        details: `Login blocked: reCAPTCHA failed (reason=${captcha.reason ?? "unknown"}, score=${captcha.score ?? "n/a"}).`,
+        ip,
+        metadata: {
+          email: body.email,
+          endpoint: "login",
+          captchaReason: captcha.reason,
+          captchaScore: captcha.score,
+          captchaAction: captcha.action,
+          captchaErrorCodes: captcha.errorCodes
+        },
+        runAi: false
+      });
+    } catch (logError) {
+      console.error("[login] failed to record CAPTCHA_FAILED event:", logError);
+    }
     return NextResponse.json(
       { error: "CAPTCHA verification failed. Please try again." },
       { status: 403 }
@@ -274,13 +280,19 @@ export async function POST(request: NextRequest) {
     // { twoFactorRedirect: true } in the body and sets a short-lived
     // 2FA cookie. The login form inspects the JSON and redirects to /two-factor.
   } catch (error) {
-    await recordSecurityEvent({
-      type: "LOGIN_FAILURE",
-      severity: "MEDIUM",
-      details: `Failed login attempt for email: ${body.email}`,
-      ip,
-      metadata: { email: body.email }
-    });
+    // Best-effort logging: never let a DB failure here mask the real error
+    // with an empty-body 500 — always return a clean JSON response.
+    try {
+      await recordSecurityEvent({
+        type: "LOGIN_FAILURE",
+        severity: "MEDIUM",
+        details: `Failed login attempt for email: ${body.email}`,
+        ip,
+        metadata: { email: body.email }
+      });
+    } catch (logError) {
+      console.error("[login] failed to record LOGIN_FAILURE event:", logError);
+    }
     const message = error instanceof APIError ? error.message : "Unable to sign in.";
     return NextResponse.json({ error: message }, { status: 401 });
   }

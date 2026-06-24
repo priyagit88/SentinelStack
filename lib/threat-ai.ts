@@ -106,7 +106,12 @@ export async function analyzeThreat(args: {
       recommended_action: String(parsed.recommended_action ?? fallbackAnalysis.recommended_action)
     };
   } catch (err) {
-    console.error("[threat-ai] Groq analysis failed:", err);
+    console.error(
+      "[threat-ai] Groq analysis failed:",
+      err,
+      "cause:",
+      (err as { cause?: unknown })?.cause
+    );
     return fallbackAnalysis;
   }
 }

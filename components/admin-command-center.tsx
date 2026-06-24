@@ -1187,86 +1187,11 @@ export function AdminCommandCenter() {
               </div>
             </article>
 
-            {/* Block headers stream */}
-            <article className="rounded-xl border border-cyan-300/15 bg-slate-950/85 p-6 shadow-[0_0_24px_rgba(6,182,212,0.06)]">
-              <div className="border-b border-cyan-300/10 pb-4 mb-6">
-                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                  <Layers className="h-5 w-5 text-cyan-400" />
-                  Recent Block Ledger Stream
-                </h2>
-                <p className="text-xs text-slate-400 mt-0.5">Chronological record of mined blocks containing forensic event transactions</p>
-              </div>
-
-              <div className="relative border-l border-cyan-300/10 pl-6 ml-3 space-y-6">
-                {!blockchainInfo?.recentBlocks ? (
-                  <div className="flex items-center justify-center py-6 text-slate-500 font-medium">
-                    {loadingBlockchain ? (
-                      <Loader2 className="h-5 w-5 animate-spin text-cyan-400" />
-                    ) : (
-                      "No blocks found or ledger is offline"
-                    )}
-                  </div>
-                ) : (
-                  blockchainInfo.recentBlocks.map((block: any) => (
-                    <div key={block.number} className="relative animate-[fadeIn_0.3s_ease-out]">
-                      {/* Node point connector */}
-                      <span className="absolute -left-[31px] top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-slate-950 border border-cyan-400/40">
-                        <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.8)]" />
-                      </span>
-
-                      <div className="rounded-lg border border-cyan-300/10 bg-slate-900/40 p-4 transition-all hover:border-cyan-300/25">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-extrabold text-white font-mono flex items-center gap-1.5">
-                            <Layers className="h-3.5 w-3.5 text-cyan-400" />
-                            BLOCK #{block.number}
-                          </span>
-                          <span className="text-[10px] text-slate-500 font-mono">
-                            {new Date(block.timestamp * 1000).toLocaleTimeString()}
-                          </span>
-                        </div>
-
-                        <div className="space-y-1 text-[10px] text-slate-400 font-medium font-mono">
-                          <div className="flex items-center justify-between">
-                            <span>BLOCK HASH:</span>
-                            <div className="flex items-center gap-1">
-                              <span className="text-slate-300 truncate max-w-[150px]">{block.hash}</span>
-                              <button
-                                onClick={() => handleCopy(block.hash)}
-                                className="text-slate-500 hover:text-slate-300"
-                              >
-                                {copiedText === block.hash ? (
-                                  <Check className="h-3 w-3 text-green-400" />
-                                ) : (
-                                  <Copy className="h-3 w-3" />
-                                )}
-                              </button>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center justify-between">
-                            <span>PARENT HASH:</span>
-                            <span className="text-slate-500 truncate max-w-[150px]">{block.parentHash}</span>
-                          </div>
-
-                          <div className="flex items-center justify-between border-t border-white/5 pt-1.5 mt-1.5 text-[9px] font-bold text-slate-500 uppercase tracking-wider">
-                            <span>TRANSACTIONS: <span className="text-cyan-400 font-mono">{block.txCount} tx</span></span>
-                            <span>GAS CONSUMED: <span className="text-cyan-400 font-mono">{block.gasUsed}</span></span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </article>
+            {/* On-chain block explorer (Blocks / Logs / Network) */}
+            <BlockchainExplorer />
           </div>
         </div>
       )}
-
-      {/* ── Clean Blockchain Explorer (always visible below tabs) ── */}
-      <section>
-        <BlockchainExplorer />
-      </section>
 
       {/* ── Blocked Accounts ── */}
       <section>
