@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { connectMongoose } from "@/lib/db";
 import { SecurityLog } from "@/lib/models/security-log";
-import { analyzeThreatWithGemini } from "@/lib/threat-ai";
+import { analyzeThreat } from "@/lib/threat-ai";
 
 export const runtime = "nodejs";
 
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
   if (log.aiAnalysis) return NextResponse.json({ ok: true, aiAnalysis: log.aiAnalysis });
 
   try {
-    const aiAnalysis = await analyzeThreatWithGemini({
+    const aiAnalysis = await analyzeThreat({
       event: {
         type: log.type,
         severity: log.severity,

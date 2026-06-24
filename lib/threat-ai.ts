@@ -1,4 +1,3 @@
-import { GoogleGenAI, Type } from "@google/genai";
 import { connectMongoose } from "@/lib/db";
 import { Session } from "@/lib/models/session";
 
@@ -21,84 +20,81 @@ const fallbackAnalysis: ThreatAiAnalysis = {
   recommended_action: "Trigger Step-up Multi-Factor Authentication Challenge"
 };
 
-export async function analyzeThreatWithGemini(args: {
+const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+// llama-3.3-70b-versatile is the best quality/limits balance on Groq's free
+// tier. Override with GROQ_MODEL (e.g. "openai/gpt-oss-120b") for max quality.
+const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+
+const SYSTEM_PROMPT =
+  "You are a Tier 3 Security Operations Center analyst evaluating credential anomalies " +
+  "(account takeover, VPN/location jumping, shared-device behaviour, or benign baseline drift). " +
+  "Consider the IP, geolocation, browser footprint, velocity, and the user's recent sessions. " +
+  "Respond with ONLY a single JSON object (no prose, no markdown) with EXACTLY these keys: " +
+  "who (string — one sentence: the account email/user, source IP, and city/country if known), " +
+  "what (string — one sentence: what happened and why it is or isn't risky), " +
+  "when (string — one sentence: the time plus any timing anomaly such as off-hours access, rapid retries, or impossible travel), " +
+  "confidence_score (integer 0-100 — probability the event is malicious), " +
+  "recommended_action (string — e.g. force password reset, step-up MFA, revoke sessions, or benign baseline update).";
+
+/**
+ * AI threat triage via Groq (OpenAI-compatible chat completions, JSON mode).
+ * Falls back to deterministic heuristics if GROQ_API_KEY is unset or the call
+ * fails/times out, so callers never need to handle an error.
+ */
+export async function analyzeThreat(args: {
   event: Record<string, unknown>;
   userId?: string;
 }): Promise<ThreatAiAnalysis> {
-  if (!process.env.GEMINI_API_KEY) return fallbackAnalysis;
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return fallbackAnalysis;
 
-  await connectMongoose();
-  const history = args.userId
-    ? await Session.find({ userId: args.userId })
+  try {
+    let history: unknown[] = [];
+    if (args.userId) {
+      await connectMongoose();
+      history = await Session.find({ userId: args.userId })
         .sort({ createdAt: -1 })
         .limit(5)
         .select("ipAddress userAgent location createdAt")
-        .lean()
-    : [];
+        .lean();
+    }
 
-  try {
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              text: JSON.stringify(
-                {
-                  role:
-                    "Act as a Tier 3 Cyber Security Operations Center Specialist evaluating credential anomalies.",
-                  task:
-                    "Assess whether this event resembles account takeover, VPN location jumping, shared-device behavior, or benign baseline drift. Consider IP, location, browser footprint, velocity, and the user's past five sessions. Summarize for a SOC analyst as four concise fields — who (the actor: account email, source IP and geolocation), what (what action occurred and why it is or isn't risky), when (the time it occurred plus any timing anomaly such as off-hours access, rapid retries, or impossible travel), and a recommended_action.",
-                  suspicious_event: args.event,
-                  recent_successful_login_history: history
-                },
-                null,
-                2
-              )
-            }
-          ]
-        }
-      ],
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            who: {
-              type: Type.STRING,
-              description:
-                "The actor in one sentence: account email/user, source IP, and geolocation (city/country) if known."
-            },
-            what: {
-              type: Type.STRING,
-              description:
-                "What happened in one sentence and why it is or isn't risky (takeover, location jump, shared device, benign drift)."
-            },
-            when: {
-              type: Type.STRING,
-              description:
-                "When it occurred plus any timing anomaly (off-hours access, rapid retries, impossible-travel velocity). One sentence."
-            },
-            confidence_score: {
-              type: Type.INTEGER,
-              minimum: 0,
-              maximum: 100,
-              description: "Probability from 0 to 100 that the event is malicious."
-            },
-            recommended_action: {
-              type: Type.STRING,
-              description:
-                "Clear SOC action such as force password reset, step-up MFA, revoke sessions, or benign baseline update."
-            }
-          },
-          required: ["who", "what", "when", "confidence_score", "recommended_action"]
-        }
-      }
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12000);
+    const res = await fetch(GROQ_URL, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${apiKey}`
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        temperature: 0.2,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          {
+            role: "user",
+            content: JSON.stringify(
+              { suspicious_event: args.event, recent_successful_login_history: history },
+              null,
+              2
+            )
+          }
+        ]
+      })
+    }).finally(() => clearTimeout(timer));
 
-    const text = response.text;
+    if (!res.ok) {
+      console.error("[threat-ai] Groq HTTP", res.status, await res.text().catch(() => ""));
+      return fallbackAnalysis;
+    }
+
+    const data = (await res.json()) as {
+      choices?: { message?: { content?: string } }[];
+    };
+    const text = data?.choices?.[0]?.message?.content;
     if (!text) return fallbackAnalysis;
 
     const parsed = JSON.parse(text) as ThreatAiAnalysis;
@@ -106,10 +102,16 @@ export async function analyzeThreatWithGemini(args: {
       who: String(parsed.who ?? ""),
       what: String(parsed.what ?? parsed.incident_summary ?? ""),
       when: String(parsed.when ?? ""),
-      confidence_score: Math.min(100, Math.max(0, Number(parsed.confidence_score))),
-      recommended_action: String(parsed.recommended_action)
+      confidence_score: Math.min(100, Math.max(0, Number(parsed.confidence_score) || 0)),
+      recommended_action: String(parsed.recommended_action ?? fallbackAnalysis.recommended_action)
     };
-  } catch {
+  } catch (err) {
+    console.error(
+      "[threat-ai] Groq analysis failed:",
+      err,
+      "cause:",
+      (err as { cause?: unknown })?.cause
+    );
     return fallbackAnalysis;
   }
 }

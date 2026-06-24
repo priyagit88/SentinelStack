@@ -13,7 +13,7 @@ export type HoneyLogDocument = {
   };
   action: string;                // e.g. "LOGIN", "VIEW_PROFILE", "CHANGE_PASSWORD_ATTEMPT", "POST_SPAM"
   payload?: Record<string, unknown>; // Whatever they submitted (sanitised)
-  aiConfidenceScore?: number;    // Gemini score that triggered deception
+  aiConfidenceScore?: number;    // AI score that triggered deception
   aiSummary?: string;
   timestamp: Date;
 };

@@ -277,6 +277,8 @@ const baseAuthOptions = {
           const context = (ctx as { context?: { headers?: Headers } } | null)?.context;
           let ipAddress = typeof session.ipAddress === "string" && session.ipAddress ? session.ipAddress : "127.0.0.1";
           let userAgent = session.userAgent ?? undefined;
+          let clientLatitude: number | null = null;
+          let clientLongitude: number | null = null;
           
           try {
             const { headers } = await import("next/headers");
@@ -289,6 +291,12 @@ const baseAuthOptions = {
             if (reqHeaders.get("user-agent")) {
                userAgent = reqHeaders.get("user-agent") ?? undefined;
             }
+            const clientLatStr = reqHeaders.get("x-client-latitude");
+            const clientLonStr = reqHeaders.get("x-client-longitude");
+            if (clientLatStr && clientLonStr) {
+              clientLatitude = parseFloat(clientLatStr);
+              clientLongitude = parseFloat(clientLonStr);
+            }
           } catch (e) {
             // Fallback if not in a request context
           }
@@ -296,6 +304,10 @@ const baseAuthOptions = {
           const location = await resolveIpLocation(ipAddress);
           if (location.realIp) {
              ipAddress = location.realIp;
+          }
+          if (clientLatitude !== null && clientLongitude !== null && !isNaN(clientLatitude) && !isNaN(clientLongitude)) {
+            location.lat = clientLatitude;
+            location.lon = clientLongitude;
           }
           const userId = String(session.userId ?? "");
 
@@ -418,14 +430,25 @@ const authOptions = {
       const persisted = await User.findOne({
         $or: [{ id: user.id }, { email: user.email }]
       })
-        .select("isFlagged riskScore")
-        .lean<{ isFlagged?: boolean; riskScore?: number } | null>();
+        .select("isFlagged riskScore isVerifiedHuman")
+        .lean<{ isFlagged?: boolean; riskScore?: number; isVerifiedHuman?: boolean } | null>();
+
+      let riskScore = Number(persisted?.riskScore ?? (user as { riskScore?: number }).riskScore ?? 0);
+
+      // World ID risk score integration: verified humans get a reduced risk score,
+      // unverified accounts receive a penalty to reflect the absence of proof-of-personhood.
+      if (persisted?.isVerifiedHuman) {
+        riskScore = Math.max(0, riskScore - 20);
+      } else {
+        riskScore += 15;
+      }
 
       return {
         user: {
           ...user,
           isFlagged: Boolean(persisted?.isFlagged ?? (user as { isFlagged?: boolean }).isFlagged),
-          riskScore: Number(persisted?.riskScore ?? (user as { riskScore?: number }).riskScore ?? 0)
+          riskScore,
+          isVerifiedHuman: Boolean(persisted?.isVerifiedHuman ?? false)
         },
         session
       };

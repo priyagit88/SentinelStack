@@ -4,7 +4,7 @@ import { connectMongoose } from "@/lib/db";
 import { SecurityLog, type Severity } from "@/lib/models/security-log";
 import { Session, type GeoLocation, type SentinelSession } from "@/lib/models/session";
 import { User } from "@/lib/models/user";
-import { analyzeThreatWithGemini } from "@/lib/threat-ai";
+import { analyzeThreat } from "@/lib/threat-ai";
 
 export type LoginContext = {
   userId: string;
@@ -196,8 +196,8 @@ export async function recordSecurityEvent(args: {
     aiAnalysis: null
   });
 
-  if (args.runAi && process.env.GEMINI_API_KEY) {
-    const aiAnalysis = await analyzeThreatWithGemini({
+  if (args.runAi && process.env.GROQ_API_KEY) {
+    const aiAnalysis = await analyzeThreat({
       event: {
         type: args.type,
         severity: args.severity,

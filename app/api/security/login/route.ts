@@ -3,7 +3,7 @@ import { APIError } from "better-auth/api";
 import { auth } from "@/lib/auth";
 import { recordSecurityEvent, getClientIp, resolveIpLocation, userAgentToDevice } from "@/lib/security";
 import { verifyCaptcha } from "@/lib/captcha";
-import { analyzeThreatWithGemini } from "@/lib/threat-ai";
+import { analyzeThreat } from "@/lib/threat-ai";
 import {
   DECEPTION_COOKIE,
   DECEPTION_THRESHOLD,
@@ -92,6 +92,8 @@ export async function POST(request: NextRequest) {
     rememberMe?: boolean;
     captchaToken?: string;
     focusToSubmitMs?: number;
+    latitude?: number;
+    longitude?: number;
   };
   try {
     body = (await request.json()) as typeof body;
@@ -104,21 +106,27 @@ export async function POST(request: NextRequest) {
   // (low score, invalid host, missing token, etc.) into security events.
   const captcha = await verifyCaptcha(body.captchaToken);
   if (!captcha.ok) {
-    await recordSecurityEvent({
-      type: "CAPTCHA_FAILED",
-      severity: "HIGH",
-      details: `Login blocked: reCAPTCHA failed (reason=${captcha.reason ?? "unknown"}, score=${captcha.score ?? "n/a"}).`,
-      ip,
-      metadata: {
-        email: body.email,
-        endpoint: "login",
-        captchaReason: captcha.reason,
-        captchaScore: captcha.score,
-        captchaAction: captcha.action,
-        captchaErrorCodes: captcha.errorCodes
-      },
-      runAi: false
-    });
+    // Best-effort: a DB outage while logging the CAPTCHA failure must not turn
+    // a blocked login into an empty-body 500.
+    try {
+      await recordSecurityEvent({
+        type: "CAPTCHA_FAILED",
+        severity: "HIGH",
+        details: `Login blocked: reCAPTCHA failed (reason=${captcha.reason ?? "unknown"}, score=${captcha.score ?? "n/a"}).`,
+        ip,
+        metadata: {
+          email: body.email,
+          endpoint: "login",
+          captchaReason: captcha.reason,
+          captchaScore: captcha.score,
+          captchaAction: captcha.action,
+          captchaErrorCodes: captcha.errorCodes
+        },
+        runAi: false
+      });
+    } catch (logError) {
+      console.error("[login] failed to record CAPTCHA_FAILED event:", logError);
+    }
     return NextResponse.json(
       { error: "CAPTCHA verification failed. Please try again." },
       { status: 403 }
@@ -127,6 +135,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const sanitizedHeaders = stripTrustDeviceCookies(request.headers);
+    if (typeof body.latitude === "number" && typeof body.longitude === "number") {
+      sanitizedHeaders.set("x-client-latitude", String(body.latitude));
+      sanitizedHeaders.set("x-client-longitude", String(body.longitude));
+    }
+
     const signInResponse = await auth.api.signInEmail({
       body: {
         email: body.email ?? "",
@@ -161,13 +174,18 @@ export async function POST(request: NextRequest) {
 
     // ── Deception Mode AI Gate ──────────────────────────────────────────────
     // Credential check passed. Everything below is best-effort: if any of it
-    // throws (Gemini, IP geolocation, DB), we must NOT convert a valid login
+    // throws (Groq, IP geolocation, DB), we must NOT convert a valid login
     // into a failure — fall through and return the real sign-in response.
     try {
       const location = await resolveIpLocation(ip);
+      // Prefer precise client geolocation (lat/long) when the browser supplied it.
+      if (typeof body.latitude === "number" && typeof body.longitude === "number") {
+        location.lat = body.latitude;
+        location.lon = body.longitude;
+      }
       const ua = request.headers.get("user-agent") ?? undefined;
 
-      const aiResult = await analyzeThreatWithGemini({
+      const aiResult = await analyzeThreat({
         event: {
           type: "LOGIN_SUCCESS",
           email: body.email,
@@ -262,13 +280,19 @@ export async function POST(request: NextRequest) {
     // { twoFactorRedirect: true } in the body and sets a short-lived
     // 2FA cookie. The login form inspects the JSON and redirects to /two-factor.
   } catch (error) {
-    await recordSecurityEvent({
-      type: "LOGIN_FAILURE",
-      severity: "MEDIUM",
-      details: `Failed login attempt for email: ${body.email}`,
-      ip,
-      metadata: { email: body.email }
-    });
+    // Best-effort logging: never let a DB failure here mask the real error
+    // with an empty-body 500 — always return a clean JSON response.
+    try {
+      await recordSecurityEvent({
+        type: "LOGIN_FAILURE",
+        severity: "MEDIUM",
+        details: `Failed login attempt for email: ${body.email}`,
+        ip,
+        metadata: { email: body.email }
+      });
+    } catch (logError) {
+      console.error("[login] failed to record LOGIN_FAILURE event:", logError);
+    }
     const message = error instanceof APIError ? error.message : "Unable to sign in.";
     return NextResponse.json({ error: message }, { status: 401 });
   }

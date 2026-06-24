@@ -21,8 +21,21 @@ import {
   Ban,
   Loader2,
   Sparkles,
-  Bot
+  Bot,
+  Link as LinkIcon,
+  Database,
+  Activity,
+  CheckCircle2,
+  Trash2,
+  RefreshCw,
+  Coins,
+  Cpu,
+  Layers,
+  Copy,
+  Check
 } from "lucide-react";
+
+import { BlockchainExplorer } from "@/components/blockchain-explorer";
 
 const Globe = dynamic(() => import("react-globe.gl"), { ssr: false });
 
@@ -148,7 +161,92 @@ export function AdminCommandCenter() {
   const [honeyLogs, setHoneyLogs]           = useState<HoneyLogEntry[]>([]);
   const [honeySessions, setHoneySessions]   = useState<HoneySession[]>([]);
   const [loadingHoney, setLoadingHoney]     = useState(false);
-  const [activeTab, setActiveTab]           = useState<"realtime" | "deception">("realtime");
+  const [activeTab, setActiveTab]           = useState<"realtime" | "deception" | "blockchain">("realtime");
+
+  // Blockchain Ledger & Forensics State
+  const [blockchainInfo, setBlockchainInfo] = useState<any>(null);
+  const [forensicData, setForensicData]     = useState<any>(null);
+  const [loadingBlockchain, setLoadingBlockchain] = useState(false);
+  const [scanningForensics, setScanningForensics] = useState(false);
+
+  // Anchor Form State
+  const [anchorUserId, setAnchorUserId]     = useState("user_999");
+  const [anchorAction, setAnchorAction]     = useState("BRUTE_FORCE_ATTEMPT");
+  const [anchorRisk, setAnchorRisk]         = useState("HIGH");
+  const [anchoring, setAnchoring]           = useState(false);
+  const [anchorReceipt, setAnchorReceipt]   = useState<any>(null);
+  const [anchorError, setAnchorError]       = useState<string | null>(null);
+  const [copiedText, setCopiedText]         = useState<string | null>(null);
+
+  const fetchBlockchainInfo = async () => {
+    setLoadingBlockchain(true);
+    try {
+      const res = await fetch("/api/admin/blockchain-info");
+      const data = await res.json();
+      setBlockchainInfo(data);
+    } catch (err) {
+      console.error("Failed to fetch blockchain info:", err);
+    } finally {
+      setLoadingBlockchain(false);
+    }
+  };
+
+  const runForensicScan = async () => {
+    setScanningForensics(true);
+    try {
+      const res = await fetch("/api/admin/forensic-verify");
+      const data = await res.json();
+      setForensicData(data);
+    } catch (err) {
+      console.error("Failed to run forensic scan:", err);
+    } finally {
+      setScanningForensics(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "blockchain") {
+      fetchBlockchainInfo();
+      runForensicScan();
+    }
+  }, [activeTab]);
+
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedText(text);
+    setTimeout(() => setCopiedText(null), 2000);
+  };
+
+  const handleAnchorSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAnchoring(true);
+    setAnchorReceipt(null);
+    setAnchorError(null);
+    try {
+      const res = await fetch("/api/admin/forensic-verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: anchorUserId,
+          action: anchorAction,
+          riskScore: anchorRisk
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAnchorReceipt(data.receipt);
+        // Refresh blockchain info and run forensic scan
+        fetchBlockchainInfo();
+        runForensicScan();
+      } else {
+        setAnchorError(data.error || "Failed to anchor log.");
+      }
+    } catch (err: any) {
+      setAnchorError(err.message || "Network error while anchoring.");
+    } finally {
+      setAnchoring(false);
+    }
+  };
   const feedRef                             = useRef<HTMLDivElement>(null);
   const esRef                               = useRef<EventSource | null>(null);
   const initialised                         = useRef(false);
@@ -345,143 +443,156 @@ export function AdminCommandCenter() {
           <Fingerprint className="h-4 w-4" />
           Deception Mode Intel
         </button>
+        <button
+          onClick={() => setActiveTab("blockchain")}
+          className={`flex items-center gap-2 px-6 py-3 text-sm font-semibold transition-all ${
+            activeTab === "blockchain"
+              ? "border-b-2 border-cyan-400 text-cyan-400"
+              : "text-slate-500 hover:text-slate-300"
+          }`}
+        >
+          <Layers className="h-4 w-4" />
+          Forensic Ledger Explorer
+        </button>
       </div>
 
       {/* ── Main Content ── */}
-      {activeTab === "realtime" ? (
+      {activeTab === "realtime" && (
         <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-        {/* Globe */}
-        <article className="min-h-[560px] overflow-hidden rounded-xl border border-cyan-300/15 bg-slate-950/85 shadow-[0_0_24px_rgba(6,182,212,0.06)]">
-          <div className="flex items-center justify-between border-b border-cyan-300/10 px-5 py-4">
-            <h2 className="text-lg font-semibold text-white">Global Session Intelligence</h2>
-            <div className="flex items-center gap-2 text-xs text-slate-400">
-              <span className="inline-block h-2 w-2 rounded-full bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.8)]" />
-              {sessions.length} node{sessions.length !== 1 ? "s" : ""} tracked
+          {/* Globe */}
+          <article className="min-h-[560px] overflow-hidden rounded-xl border border-cyan-300/15 bg-slate-950/85 shadow-[0_0_24px_rgba(6,182,212,0.06)]">
+            <div className="flex items-center justify-between border-b border-cyan-300/10 px-5 py-4">
+              <h2 className="text-lg font-semibold text-white">Global Session Intelligence</h2>
+              <div className="flex items-center gap-2 text-xs text-slate-400">
+                <span className="inline-block h-2 w-2 rounded-full bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.8)]" />
+                {sessions.length} node{sessions.length !== 1 ? "s" : ""} tracked
+              </div>
             </div>
-          </div>
-          <div className="h-[520px]">
-            <Globe
-              backgroundColor="rgba(2,6,23,0)"
-              globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
-              bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
-              pointsData={points}
-              pointAltitude="size"
-              pointColor="color"
-              pointRadius={0.42}
-              pointLabel="label"
-              arcsData={arcs}
-              arcColor="color"
-              arcStroke={0.8}
-              arcDashLength={0.45}
-              arcDashGap={0.8}
-              arcDashAnimateTime={1800}
-              width={860}
-              height={520}
-            />
-          </div>
-        </article>
-
-        {/* Security Feed */}
-        <article className="flex flex-col rounded-xl border border-cyan-300/15 bg-slate-950/85 shadow-[0_0_24px_rgba(6,182,212,0.06)]">
-          <div className="flex shrink-0 items-center justify-between border-b border-cyan-300/10 px-5 py-4">
-            <div className="flex items-center gap-3">
-              <h2 className="text-lg font-semibold text-white">Security Feed</h2>
-              {newCount > 0 && (
-                <button
-                  onClick={() => {
-                    feedRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-                    setNewCount(0);
-                  }}
-                  className="flex animate-bounce items-center gap-1.5 rounded-full bg-cyan-500/20 px-2.5 py-1 text-xs font-semibold text-cyan-300 ring-1 ring-cyan-400/30 transition hover:bg-cyan-500/30"
-                >
-                  <Zap className="h-3 w-3" />
-                  {newCount} new
-                </button>
-              )}
+            <div className="h-[520px]">
+              <Globe
+                backgroundColor="rgba(2,6,23,0)"
+                globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
+                bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
+                pointsData={points}
+                pointAltitude="size"
+                pointColor="color"
+                pointRadius={0.42}
+                pointLabel="label"
+                arcsData={arcs}
+                arcColor="color"
+                arcStroke={0.8}
+                arcDashLength={0.45}
+                arcDashGap={0.8}
+                arcDashAnimateTime={1800}
+                width={860}
+                height={520}
+              />
             </div>
-            <span className="text-xs text-slate-500">
-              {filteredLogs.length} match{filteredLogs.length !== 1 ? "es" : ""}
-            </span>
-          </div>
+          </article>
 
-          {/* Filter Bar */}
-          <div className="flex flex-wrap items-center gap-2 border-b border-cyan-300/10 bg-cyan-300/5 px-4 py-3">
-            <FilterControl
-              icon={LayoutGrid}
-              label="Type"
-              value={typeFilter}
-              onChange={setTypeFilter}
-              options={[
-                { label: "All Types", value: "ALL" },
-                { label: "Login Success", value: "LOGIN_SUCCESS" },
-                { label: "Login Failure", value: "LOGIN_FAILURE" },
-                { label: "Honeypot", value: "HONEYPOT" },
-                { label: "Bot Velocity", value: "BOT_VELOCITY" },
-                { label: "Impossible Travel", value: "IMPOSSIBLE_TRAVEL" },
-              ]}
-            />
-            <FilterControl
-              icon={Shield}
-              label="Level"
-              value={severityFilter}
-              onChange={setSeverityFilter}
-              options={[
-                { label: "All Levels", value: "ALL" },
-                { label: "Critical", value: "CRITICAL" },
-                { label: "High", value: "HIGH" },
-                { label: "Medium", value: "MEDIUM" },
-                { label: "Low", value: "LOW" },
-              ]}
-            />
-            <FilterControl
-              icon={Clock}
-              label="Time"
-              value={timeFilter}
-              onChange={setTimeFilter}
-              options={[
-                { label: "All Time", value: "ALL" },
-                { label: "Last Hour", value: "HOUR" },
-                { label: "Last 24h", value: "DAY" },
-              ]}
-            />
-          </div>
-
-          <div
-            ref={feedRef}
-            onScroll={handleFeedScroll}
-            className="flex-1 overflow-y-auto p-4"
-            style={{ maxHeight: 560 }}
-          >
-            {status === "connecting" && !initialised.current ? (
-              <FeedSkeleton />
-            ) : (
-              <div className="grid gap-2.5">
-                {filteredLogs.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <Filter className="mb-3 h-10 w-10 text-slate-600" />
-                    <p className="text-sm font-medium text-slate-400">No events match your filters</p>
-                    <button 
-                      onClick={() => { setTypeFilter("ALL"); setSeverityFilter("ALL"); setTimeFilter("ALL"); }}
-                      className="mt-4 text-xs font-semibold text-cyan-400 hover:text-cyan-300"
-                    >
-                      Clear all filters
-                    </button>
-                  </div>
-                ) : (
-                  filteredLogs.map(log => (
-                    <LogCard
-                      key={log.id}
-                      log={log}
-                      isNew={flashIds.has(log.id)}
-                    />
-                  ))
+          {/* Security Feed */}
+          <article className="flex flex-col rounded-xl border border-cyan-300/15 bg-slate-950/85 shadow-[0_0_24px_rgba(6,182,212,0.06)]">
+            <div className="flex shrink-0 items-center justify-between border-b border-cyan-300/10 px-5 py-4">
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-semibold text-white">Security Feed</h2>
+                {newCount > 0 && (
+                  <button
+                    onClick={() => {
+                      feedRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+                      setNewCount(0);
+                    }}
+                    className="flex animate-bounce items-center gap-1.5 rounded-full bg-cyan-500/20 px-2.5 py-1 text-xs font-semibold text-cyan-300 ring-1 ring-cyan-400/30 transition hover:bg-cyan-500/30"
+                  >
+                    <Zap className="h-3 w-3" />
+                    {newCount} new
+                  </button>
                 )}
               </div>
-            )}
-          </div>
-        </article>
-      </section>
-      ) : (
+              <span className="text-xs text-slate-500">
+                {filteredLogs.length} match{filteredLogs.length !== 1 ? "es" : ""}
+              </span>
+            </div>
+
+            {/* Filter Bar */}
+            <div className="flex flex-wrap items-center gap-2 border-b border-cyan-300/10 bg-cyan-300/5 px-4 py-3">
+              <FilterControl
+                icon={LayoutGrid}
+                label="Type"
+                value={typeFilter}
+                onChange={setTypeFilter}
+                options={[
+                  { label: "All Types", value: "ALL" },
+                  { label: "Login Success", value: "LOGIN_SUCCESS" },
+                  { label: "Login Failure", value: "LOGIN_FAILURE" },
+                  { label: "Honeypot", value: "HONEYPOT" },
+                  { label: "Bot Velocity", value: "BOT_VELOCITY" },
+                  { label: "Impossible Travel", value: "IMPOSSIBLE_TRAVEL" },
+                ]}
+              />
+              <FilterControl
+                icon={Shield}
+                label="Level"
+                value={severityFilter}
+                onChange={setSeverityFilter}
+                options={[
+                  { label: "All Levels", value: "ALL" },
+                  { label: "Critical", value: "CRITICAL" },
+                  { label: "High", value: "HIGH" },
+                  { label: "Medium", value: "MEDIUM" },
+                  { label: "Low", value: "LOW" },
+                ]}
+              />
+              <FilterControl
+                icon={Clock}
+                label="Time"
+                value={timeFilter}
+                onChange={setTimeFilter}
+                options={[
+                  { label: "All Time", value: "ALL" },
+                  { label: "Last Hour", value: "HOUR" },
+                  { label: "Last 24h", value: "DAY" },
+                ]}
+              />
+            </div>
+
+            <div
+              ref={feedRef}
+              onScroll={handleFeedScroll}
+              className="flex-1 overflow-y-auto p-4"
+              style={{ maxHeight: 560 }}
+            >
+              {status === "connecting" && !initialised.current ? (
+                <FeedSkeleton />
+              ) : (
+                <div className="grid gap-2.5">
+                  {filteredLogs.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <Filter className="mb-3 h-10 w-10 text-slate-600" />
+                      <p className="text-sm font-medium text-slate-400">No events match your filters</p>
+                      <button 
+                        onClick={() => { setTypeFilter("ALL"); setSeverityFilter("ALL"); setTimeFilter("ALL"); }}
+                        className="mt-4 text-xs font-semibold text-cyan-400 hover:text-cyan-300"
+                      >
+                        Clear all filters
+                      </button>
+                    </div>
+                  ) : (
+                    filteredLogs.map(log => (
+                      <LogCard
+                        key={log.id}
+                        log={log}
+                        isNew={flashIds.has(log.id)}
+                      />
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          </article>
+        </section>
+      )}
+
+      {activeTab === "deception" && (
         <section className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
           {/* Attacker Sessions */}
           <article className="flex flex-col rounded-xl border border-cyan-300/15 bg-slate-950/85 shadow-[0_0_24px_rgba(6,182,212,0.06)]">
@@ -534,6 +645,552 @@ export function AdminCommandCenter() {
             </div>
           </article>
         </section>
+      )}
+
+      {activeTab === "blockchain" && (
+        <div className="grid gap-6 xl:grid-cols-[1.1fr_1.9fr]">
+          <style>{`
+            @keyframes scan {
+              0% { top: 0%; opacity: 0; }
+              50% { opacity: 1; }
+              100% { top: 100%; opacity: 0; }
+            }
+            .scanner-line {
+              animation: scan 2s linear infinite;
+            }
+          `}</style>
+
+          {/* Left Column: Metrics & Form */}
+          <div className="grid gap-6 align-start content-start">
+            {/* Integrity Status Card */}
+            <article className="relative overflow-hidden rounded-xl border border-cyan-300/15 bg-slate-950/85 p-6 shadow-[0_0_24px_rgba(6,182,212,0.06)]">
+              {scanningForensics && (
+                <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_8px_rgba(34,211,238,0.8)] scanner-line" style={{ zIndex: 10 }} />
+              )}
+              <div className="flex items-center justify-between border-b border-cyan-300/10 pb-4 mb-6">
+                <div>
+                  <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                    <Activity className="h-5 w-5 text-cyan-400" />
+                    Ledger Integrity Status
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">Real-time forensic verification scanning</p>
+                </div>
+                <button
+                  onClick={runForensicScan}
+                  disabled={scanningForensics}
+                  className="rounded-md border border-cyan-400/30 bg-cyan-400/10 p-2 text-cyan-400 hover:bg-cyan-400/20 disabled:opacity-50 transition-all"
+                  title="Run forensic scan"
+                >
+                  <RefreshCw className={`h-4 w-4 ${scanningForensics ? "animate-spin" : ""}`} />
+                </button>
+              </div>
+
+              <div className="flex flex-col items-center justify-center py-4">
+                {/* Glowing neon progress circle */}
+                <div className="relative flex items-center justify-center h-32 w-32 mb-4">
+                  <svg className="absolute transform -rotate-90 w-full h-full" viewBox="0 0 100 100">
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="40"
+                      className="stroke-slate-800"
+                      strokeWidth="8"
+                      fill="transparent"
+                    />
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="40"
+                      className={`${
+                        (forensicData?.summary?.integrityScore ?? 100) === 100
+                          ? "stroke-cyan-500"
+                          : (forensicData?.summary?.integrityScore ?? 100) >= 50
+                          ? "stroke-orange-500"
+                          : "stroke-red-500"
+                      } transition-all duration-1000`}
+                      strokeWidth="8"
+                      fill="transparent"
+                      strokeDasharray="251.2"
+                      strokeDashoffset={
+                        251.2 - (251.2 * (forensicData?.summary?.integrityScore ?? 100)) / 100
+                      }
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <div className="flex flex-col items-center justify-center z-10">
+                    <span className="text-3xl font-extrabold text-white tracking-tight tabular-nums">
+                      {forensicData?.summary?.integrityScore ?? 100}%
+                    </span>
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mt-0.5">
+                      INTEGRITY
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-center">
+                  {scanningForensics ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-500/15 px-3 py-1 text-xs font-semibold text-cyan-400 ring-1 ring-cyan-500/30">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Scanning Database...
+                    </span>
+                  ) : (forensicData?.summary?.overallStatus === "COMPLIANT" || !forensicData) ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-green-500/15 px-3 py-1 text-xs font-semibold text-green-400 ring-1 ring-green-500/30 shadow-[0_0_8px_rgba(34,197,94,0.15)]">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      SECURE & COMPLIANT
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/15 px-3 py-1 text-xs font-semibold text-red-400 ring-1 ring-red-500/30 shadow-[0_0_12px_rgba(239,68,68,0.25)] animate-pulse">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      TAMPERING DETECTED
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Stats detail grid */}
+              <div className="grid grid-cols-3 gap-2.5 mt-6 border-t border-cyan-300/10 pt-5 text-center">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">On-Chain</p>
+                  <p className="text-xl font-bold text-white mt-1 tabular-nums">
+                    {forensicData?.summary?.totalOnChainRecords ?? 0}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Database</p>
+                  <p className="text-xl font-bold text-white mt-1 tabular-nums">
+                    {forensicData?.summary?.totalDatabaseRecords ?? 0}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Anomalies</p>
+                  <p className={`text-xl font-bold mt-1 tabular-nums ${
+                    (forensicData?.summary?.flagsRaised ?? 0) > 0 ? "text-red-400" : "text-slate-400"
+                  }`}>
+                    {forensicData?.summary?.flagsRaised ?? 0}
+                  </p>
+                </div>
+              </div>
+            </article>
+
+            {/* Interactive Security Anchor (Emit Log) */}
+            <article className="rounded-xl border border-cyan-300/15 bg-slate-950/85 p-6 shadow-[0_0_24px_rgba(6,182,212,0.06)]">
+              <div className="border-b border-cyan-300/10 pb-4 mb-4">
+                <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                  <Cpu className="h-5 w-5 text-cyan-400" />
+                  Anchor Security Alert
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">Commit a mock forensic incident record to the blockchain ledger</p>
+              </div>
+
+              <form onSubmit={handleAnchorSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                    User Identifier
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={anchorUserId}
+                    onChange={(e) => setAnchorUserId(e.target.value)}
+                    className="w-full rounded-lg border border-cyan-300/10 bg-slate-900/60 px-3.5 py-2.5 text-xs text-white focus:border-cyan-400 focus:outline-none transition-colors"
+                    placeholder="e.g. user_999"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                    Incident Action
+                  </label>
+                  <select
+                    value={anchorAction}
+                    onChange={(e) => setAnchorAction(e.target.value)}
+                    className="w-full rounded-lg border border-cyan-300/10 bg-slate-900/60 px-3.5 py-2.5 text-xs text-white focus:border-cyan-400 focus:outline-none transition-colors font-sans"
+                  >
+                    <option value="BRUTE_FORCE_ATTEMPT" className="bg-slate-900 text-white">BRUTE FORCE ATTEMPT</option>
+                    <option value="SQL_INJECTION_SQLI" className="bg-slate-900 text-white">SQL INJECTION (SQLI)</option>
+                    <option value="API_SECRET_LEAK" className="bg-slate-900 text-white">API SECRET LEAK</option>
+                    <option value="PRIVILEGE_ESCALATION" className="bg-slate-900 text-white">PRIVILEGE ESCALATION</option>
+                    <option value="EXPIRED_SESSION_REPLAY" className="bg-slate-900 text-white">EXPIRED SESSION REPLAY</option>
+                    <option value="SUSPICIOUS_GEO_LOGIN" className="bg-slate-900 text-white">SUSPICIOUS GEO LOGIN</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                    Risk Severity
+                  </label>
+                  <select
+                    value={anchorRisk}
+                    onChange={(e) => setAnchorRisk(e.target.value)}
+                    className="w-full rounded-lg border border-cyan-300/10 bg-slate-900/60 px-3.5 py-2.5 text-xs text-white focus:border-cyan-400 focus:outline-none transition-colors font-sans"
+                  >
+                    <option value="LOW" className="bg-slate-900 text-white">LOW</option>
+                    <option value="MEDIUM" className="bg-slate-900 text-white">MEDIUM</option>
+                    <option value="HIGH" className="bg-slate-900 text-white">HIGH</option>
+                    <option value="CRITICAL" className="bg-slate-900 text-white">CRITICAL</option>
+                  </select>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={anchoring}
+                  className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white font-bold tracking-wider uppercase text-xs py-3 px-4 rounded-lg shadow-[0_0_15px_rgba(6,182,212,0.2)] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {anchoring ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Mining Transaction...
+                    </>
+                  ) : (
+                    <>
+                      <LinkIcon className="h-4 w-4" />
+                      Anchor Log to Ledger
+                    </>
+                  )}
+                </button>
+              </form>
+
+              {/* Anchor success receipt */}
+              {anchorReceipt && (
+                <div className="mt-4 rounded-lg border border-green-500/20 bg-green-500/5 p-4 ring-1 ring-green-500/10 animate-[fadeIn_0.3s_ease-out]">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-green-400">
+                      Block Sealed Successfully
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setAnchorReceipt(null)}
+                      className="text-slate-500 hover:text-slate-300 text-xs font-semibold"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                  <div className="space-y-1.5 text-[10px] font-medium text-slate-300">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">TX HASH:</span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-green-300 truncate max-w-[120px] font-mono">
+                          {anchorReceipt.transactionHash}
+                        </span>
+                        <button
+                          onClick={() => handleCopy(anchorReceipt.transactionHash)}
+                          className="text-slate-500 hover:text-slate-300"
+                        >
+                          {copiedText === anchorReceipt.transactionHash ? (
+                            <Check className="h-3 w-3 text-green-400" />
+                          ) : (
+                            <Copy className="h-3 w-3" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">BLOCK:</span>
+                      <span className="text-white">#{anchorReceipt.blockNumber}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">GAS USED:</span>
+                      <span className="text-cyan-300">{anchorReceipt.gasUsed} gas</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {anchorError && (
+                <div className="mt-4 rounded-lg border border-red-500/20 bg-red-500/5 p-4 ring-1 ring-red-500/10">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-red-400 mb-1">
+                    Anchoring Failed
+                  </p>
+                  <p className="text-xs text-red-200">{anchorError}</p>
+                </div>
+              )}
+            </article>
+          </div>
+
+          {/* Right Column: Network info, Audit verification comparisons, Blocks Stream */}
+          <div className="grid gap-6 align-start content-start">
+            {/* Blockchain Network Status */}
+            <article className="rounded-xl border border-cyan-300/15 bg-slate-950/85 p-6 shadow-[0_0_24px_rgba(6,182,212,0.06)]">
+              <div className="border-b border-cyan-300/10 pb-4 mb-4">
+                <h2 className="text-lg font-semibold text-white flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Activity className="h-5 w-5 text-cyan-400" />
+                    Ledger Node Status
+                  </span>
+                  {blockchainInfo?.success ? (
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-green-400 uppercase tracking-widest">
+                      <span className="h-2 w-2 rounded-full bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.8)]" />
+                      Online
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-red-400 uppercase tracking-widest">
+                      <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse shadow-[0_0_6px_rgba(239,68,68,0.8)]" />
+                      Offline
+                    </span>
+                  )}
+                </h2>
+              </div>
+
+              {loadingBlockchain && !blockchainInfo ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="h-6 w-6 animate-spin text-cyan-400" />
+                </div>
+              ) : blockchainInfo?.success ? (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2 border-r border-cyan-300/5 pr-4">
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-slate-500 font-semibold uppercase">RPC Network:</span>
+                      <span className="text-slate-300 truncate max-w-[150px]">{blockchainInfo.network.rpcUrl}</span>
+                    </div>
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-slate-500 font-semibold uppercase">Chain ID:</span>
+                      <span className="text-slate-300">{blockchainInfo.network.chainId}</span>
+                    </div>
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-slate-500 font-semibold uppercase">Gas Price:</span>
+                      <span className="text-slate-300">{blockchainInfo.network.gasPriceGwei} Gwei</span>
+                    </div>
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-slate-500 font-semibold uppercase">Block Height:</span>
+                      <span className="text-cyan-300 font-mono">#{blockchainInfo.network.blockNumber}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 pl-2">
+                    <div className="flex flex-col text-[11px]">
+                      <span className="text-slate-500 font-semibold uppercase">Contract:</span>
+                      <div className="flex items-center justify-between mt-0.5">
+                        <span className="text-slate-400 font-mono text-[10px] truncate max-w-[130px]">
+                          {blockchainInfo.network.contractAddress}
+                        </span>
+                        <button
+                          onClick={() => handleCopy(blockchainInfo.network.contractAddress)}
+                          className="text-slate-500 hover:text-slate-300 ml-1"
+                        >
+                          {copiedText === blockchainInfo.network.contractAddress ? (
+                            <Check className="h-3.5 w-3.5 text-green-400" />
+                          ) : (
+                            <Copy className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="flex flex-col text-[11px]">
+                      <span className="text-slate-500 font-semibold uppercase">Operator Wallet:</span>
+                      <div className="flex items-center justify-between mt-0.5">
+                        <span className="text-slate-400 font-mono text-[10px] truncate max-w-[130px]">
+                          {blockchainInfo.network.operatorAddress}
+                        </span>
+                        <button
+                          onClick={() => handleCopy(blockchainInfo.network.operatorAddress)}
+                          className="text-slate-500 hover:text-slate-300 ml-1"
+                        >
+                          {copiedText === blockchainInfo.network.operatorAddress ? (
+                            <Check className="h-3.5 w-3.5 text-green-400" />
+                          ) : (
+                            <Copy className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-slate-500 font-semibold uppercase">Operator Balance:</span>
+                      <span className="text-yellow-400 font-semibold flex items-center gap-1">
+                        <Coins className="h-3 w-3 text-yellow-500" />
+                        {blockchainInfo.network.operatorBalanceEth} ETH
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-4 text-center text-red-200">
+                  <AlertTriangle className="mx-auto mb-2 h-8 w-8 text-red-400" />
+                  <h3 className="text-sm font-bold text-white">Local Ledger Daemon Inactive</h3>
+                  <p className="mt-1.5 text-xs text-red-300/80 leading-relaxed">
+                    The local smart contract and node are not reachable. To deploy the ledger, run the following commands in your workspace:
+                  </p>
+                  <div className="mt-3 text-left bg-slate-950 p-2.5 rounded border border-white/5 font-mono text-[10px] text-cyan-200 select-all space-y-1 overflow-x-auto">
+                    <div># 1. Start Hardhat Node:</div>
+                    <div className="text-white font-bold">npx hardhat node</div>
+                    <div className="mt-2"># 2. Deploy Smart Contract:</div>
+                    <div className="text-white font-bold">npx hardhat run scripts/deploy.js --network localhost</div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      fetchBlockchainInfo();
+                      runForensicScan();
+                    }}
+                    className="mt-4 text-xs font-bold text-cyan-400 hover:text-cyan-300 border border-cyan-400/20 rounded px-3 py-1.5 bg-cyan-400/5 hover:bg-cyan-400/10 transition-all"
+                  >
+                    Retry Connection
+                  </button>
+                </div>
+              )}
+            </article>
+
+            {/* Forensic Audit Trail comparisons */}
+            <article className="rounded-xl border border-cyan-300/15 bg-slate-950/85 p-6 shadow-[0_0_24px_rgba(6,182,212,0.06)]">
+              <div className="border-b border-cyan-300/10 pb-4 mb-4 flex justify-between items-center">
+                <div>
+                  <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                    <Database className="h-5 w-5 text-cyan-400" />
+                    Forensic Verification Auditing
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">Cross-referencing database records with the blockchain ledger</p>
+                </div>
+              </div>
+
+              <div className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
+                {!forensicData ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-cyan-500 mb-3" />
+                    <p className="text-sm font-medium text-slate-400">Loading audit trail...</p>
+                  </div>
+                ) : forensicData.auditTrail?.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-slate-500">No security logs recorded on-chain yet.</p>
+                ) : (
+                  forensicData.auditTrail.map((record: any) => {
+                    const isVerified = record.status === "VERIFIED";
+                    const isDeleted = record.status === "LOG_DELETION_DETECTED";
+                    const isMutated = record.status === "DATA_MUTATION_DETECTED";
+
+                    return (
+                      <div
+                        key={record.index}
+                        className={`rounded-lg border p-4 transition-all duration-300 ${
+                          isVerified
+                            ? "border-green-500/20 bg-green-500/5 hover:border-green-500/30"
+                            : isDeleted
+                            ? "border-red-500/25 bg-red-500/5 hover:border-red-500/35 shadow-[0_0_15px_rgba(239,68,68,0.05)]"
+                            : "border-orange-500/25 bg-orange-500/5 hover:border-orange-500/35 shadow-[0_0_15px_rgba(249,115,22,0.05)]"
+                        }`}
+                      >
+                        {/* Title bar */}
+                        <div className="flex items-center justify-between mb-3 border-b border-white/5 pb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-white font-mono">
+                              LOG INDEX #{record.index}
+                            </span>
+                            <span className="text-[10px] text-slate-500">
+                              {new Date(record.onChain.timestamp).toLocaleString()}
+                            </span>
+                          </div>
+
+                          <div>
+                            {isVerified && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-green-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-green-300 ring-1 ring-green-500/30">
+                                <Shield className="h-3 w-3" /> Verified
+                              </span>
+                            )}
+                            {isDeleted && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-red-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-red-300 ring-1 ring-red-500/30 animate-pulse">
+                                <Trash2 className="h-3 w-3" /> DB DELETED (TAMPERED)
+                              </span>
+                            )}
+                            {isMutated && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-orange-300 ring-1 ring-orange-500/30">
+                                <AlertTriangle className="h-3 w-3" /> DB MUTATED (TAMPERED)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Mismatch Warning Text */}
+                        {!isVerified && (
+                          <div className="mb-3 rounded border border-red-500/20 bg-red-500/5 p-2 text-[10.5px] leading-relaxed text-red-300 font-medium">
+                            {record.discrepancyDetails}
+                          </div>
+                        )}
+
+                        {/* Side by side comparison */}
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {/* Blockchain */}
+                          <div className="bg-slate-900/60 p-2.5 rounded border border-cyan-500/10 relative">
+                            <div className="absolute top-2 right-2 text-cyan-400 opacity-20">
+                              <LinkIcon className="h-4 w-4" />
+                            </div>
+                            <h4 className="text-[10px] font-bold uppercase text-cyan-400 tracking-wider mb-2 border-b border-cyan-500/10 pb-1">
+                              On-Chain Record
+                            </h4>
+                            <div className="space-y-1 text-[10px] font-medium text-slate-300 font-mono">
+                              <div><span className="text-slate-500 font-semibold">User:</span> {record.onChain.userId}</div>
+                              <div><span className="text-slate-500 font-semibold">Action:</span> {record.onChain.action}</div>
+                              <div>
+                                <span className="text-slate-500 font-semibold">Risk:</span>{" "}
+                                <span className={`${
+                                  record.onChain.riskScore === "CRITICAL"
+                                    ? "text-red-400"
+                                    : record.onChain.riskScore === "HIGH"
+                                    ? "text-orange-400"
+                                    : "text-cyan-400"
+                                }`}>
+                                  {record.onChain.riskScore}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Database */}
+                          <div className={`p-2.5 rounded border relative ${
+                            isVerified
+                              ? "bg-slate-900/60 border-white/5"
+                              : isDeleted
+                              ? "bg-red-950/20 border-red-500/20"
+                              : "bg-orange-950/20 border-orange-500/20"
+                          }`}>
+                            <div className="absolute top-2 right-2 text-slate-500 opacity-20">
+                              <Database className="h-4 w-4" />
+                            </div>
+                            <h4 className={`text-[10px] font-bold uppercase tracking-wider mb-2 border-b pb-1 ${
+                              isVerified ? "text-slate-400 border-white/5" : "text-red-400 border-red-500/10"
+                            }`}>
+                              Database Record
+                            </h4>
+
+                            {record.database ? (
+                              <div className="space-y-1 text-[10px] font-medium font-mono">
+                                <div className={record.database.userId !== record.onChain.userId ? "text-orange-300 font-bold bg-orange-500/10 px-1 rounded" : "text-slate-300"}>
+                                  <span className="text-slate-500 font-semibold">User:</span> {record.database.userId}
+                                </div>
+                                <div className={record.database.action !== record.onChain.action ? "text-orange-300 font-bold bg-orange-500/10 px-1 rounded" : "text-slate-300"}>
+                                  <span className="text-slate-500 font-semibold">Action:</span> {record.database.action}
+                                </div>
+                                <div className={record.database.riskScore !== record.onChain.riskScore ? "text-orange-300 font-bold bg-orange-500/10 px-1 rounded" : "text-slate-300"}>
+                                  <span className="text-slate-500 font-semibold">Risk:</span>{" "}
+                                  <span className={`${
+                                    record.database.riskScore === "CRITICAL"
+                                      ? "text-red-400"
+                                      : record.database.riskScore === "HIGH"
+                                      ? "text-orange-400"
+                                      : "text-slate-400"
+                                  }`}>
+                                    {record.database.riskScore}
+                                  </span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center justify-center py-2 h-14">
+                                <span className="text-xs font-bold text-red-400 uppercase tracking-widest animate-pulse">
+                                  MISSING / DELETED
+                                </span>
+                                <span className="text-[9px] text-slate-500 mt-1">Record completely purged</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </article>
+
+            {/* On-chain block explorer (Blocks / Logs / Network) */}
+            <BlockchainExplorer />
+          </div>
+        </div>
       )}
 
       {/* ── Blocked Accounts ── */}
@@ -745,7 +1402,7 @@ function LogCard({ log: initialLog, isNew }: { log: SecurityLog; isNew: boolean 
           <div className="mb-2.5 flex items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5 text-cyan-400" />
             <p className="text-[11px] font-bold uppercase tracking-wider text-cyan-400">
-              Gemini Insight
+              AI Insight
             </p>
             {typeof log.aiAnalysis.confidence_score === "number" && (
               <span className="ml-auto rounded-full bg-cyan-500/15 px-2 py-0.5 text-[10px] font-semibold text-cyan-300 ring-1 ring-inset ring-cyan-400/20">
@@ -783,7 +1440,7 @@ function LogCard({ log: initialLog, isNew }: { log: SecurityLog; isNew: boolean 
         <div className="mt-3 flex items-center gap-3 rounded-md border border-cyan-300/5 bg-slate-900/50 p-4">
           <Loader2 className="h-4 w-4 animate-spin text-cyan-500" />
           <p className="text-xs animate-pulse font-medium text-slate-500">
-            Gemini is analyzing behavioral patterns...
+            AI is analyzing behavioral patterns...
           </p>
         </div>
       ) : log.severity === "LOW" && !log.aiAnalysis ? (
@@ -809,7 +1466,7 @@ function LogCard({ log: initialLog, isNew }: { log: SecurityLog; isNew: boolean 
   );
 }
 
-// One labeled line in the Gemini insight (Who / What / When). Hidden when empty.
+// One labeled line in the AI insight (Who / What / When). Hidden when empty.
 function InsightRow({ label, value }: { label: string; value?: string }) {
   if (!value) return null;
   return (

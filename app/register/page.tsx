@@ -13,8 +13,8 @@ export default function RegisterPage() {
           Create a monitored identity.
         </h1>
         <p className="mt-5 max-w-xl leading-7 text-slate-300">
-          New accounts are protected by honeypot interception, millisecond velocity checks, and
-          risk-scored session telemetry from the first request.
+          New accounts are protected by honeypot interception, millisecond velocity checks, World ID
+          proof-of-personhood verification, and risk-scored session telemetry from the first request.
         </p>
       </section>
       <section className="rounded-lg border border-cyan-300/15 bg-slate-950/80 p-6 shadow-glow">

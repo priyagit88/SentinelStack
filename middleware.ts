@@ -17,8 +17,8 @@ import { NextResponse, type NextRequest } from "next/server";
  *      outbound response on those paths, so any cookie already in the browser
  *      from prior sessions is dropped.
  *
- * Catches every auth route — current and future — without each one having to
- * remember to do it itself.
+ * Also enforces wallet-based admin access for /admin routes (excluding the
+ * /admin/connect page which is the wallet connection entry point).
  */
 
 const TRUST_DEVICE_COOKIE_NAMES = [
@@ -40,6 +40,23 @@ function stripTrustDeviceFromCookieHeader(cookieHeader: string): string {
 }
 
 export function middleware(request: NextRequest) {
+  const path = request.nextUrl.pathname;
+
+  // ── Admin Protection (cheap presence gate) ───────────────────────────
+  // Redirect to /admin/connect when neither an admin wallet session nor a
+  // logged-in user session cookie is present. This is only a UX gate — the
+  // /admin page itself does the authoritative check: it HMAC-verifies the
+  // admin_session token (unforgeable) or the ADMIN_EMAILS session.
+  if (path.startsWith("/admin") && path !== "/admin/connect") {
+    const hasWalletSession = request.cookies.get("admin_session")?.value;
+    const hasUserSession =
+      request.cookies.get("better-auth.session_token")?.value ||
+      request.cookies.get("__Secure-better-auth.session_token")?.value;
+    if (!hasWalletSession && !hasUserSession) {
+      return NextResponse.redirect(new URL("/admin/connect", request.url));
+    }
+  }
+
   // Build modified request headers without trust_device cookies, so the route
   // handler (and better-auth's internal cookie lookup) cannot read them.
   const newRequestHeaders = new Headers(request.headers);
@@ -77,10 +94,10 @@ export function middleware(request: NextRequest) {
     secure: true
   });
 
-  // ── Deception Mode Protection ──────────────────────────────────────────
-  const isHoneyPath = request.nextUrl.pathname.startsWith("/honeypot") || 
-                      request.nextUrl.pathname.startsWith("/api/honey");
-  
+  // ── Deception Mode Protection ──────────────────────────────────────
+  const isHoneyPath = path.startsWith("/honeypot") ||
+                      path.startsWith("/api/honey");
+
   if (isHoneyPath) {
     const honeyToken = request.cookies.get("sentinel-deception-mode")?.value;
     if (!honeyToken) {
@@ -95,10 +112,11 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Run on auth-relevant paths and honeypot routes
+  // Run on auth-relevant paths, admin routes, and honeypot routes
   matcher: [
-    "/api/auth/:path*", 
+    "/api/auth/:path*",
     "/api/security/:path*",
+    "/admin/:path*",
     "/honeypot/:path*",
     "/api/honey/:path*"
   ]

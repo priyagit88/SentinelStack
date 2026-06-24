@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
+import { WorldIDVerify } from "@/components/world-id-verify";
+import type { ISuccessResult } from "@worldcoin/idkit";
 
 declare global {
   interface Window {
@@ -68,6 +70,7 @@ export function RegisterForm() {
   const [isPending, setPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const captchaRequired = Boolean(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY);
+  const [worldIdProof, setWorldIdProof] = useState<ISuccessResult | null>(null);
 
   async function signInWithProvider(provider: "google" | "github") {
     setPending(true);
@@ -96,7 +99,8 @@ export function RegisterForm() {
       password: String(form.get("password") ?? ""),
       website: String(form.get("website") ?? ""),
       focusToSubmitMs,
-      captchaToken
+      captchaToken,
+      worldIdProof
     };
 
     if (payload.website.trim()) {
@@ -176,6 +180,18 @@ export function RegisterForm() {
           </button>
         </div>
       </label>
+
+      {/* World ID Verification */}
+      {process.env.NEXT_PUBLIC_WORLD_ID_APP_ID && (
+        <div className="flex flex-col items-center gap-2 py-2">
+          <p className="text-sm text-slate-400">Prove you&apos;re human with World ID</p>
+          <WorldIDVerify
+            onVerified={(proof) => setWorldIdProof(proof)}
+            buttonText="Verify you're human"
+          />
+        </div>
+      )}
+
       {error ? <p className="text-sm text-red-300">{error}</p> : null}
       <button disabled={isPending} className="btn-slide mt-2 w-full">
         {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}

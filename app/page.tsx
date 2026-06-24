@@ -12,7 +12,7 @@ export default function HomePage() {
           SentinelStack
         </h1>
         <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
-          Secure auth, real-time session intelligence, impossible-travel detection, and Gemini SOC
+          Secure auth, real-time session intelligence, impossible-travel detection, and AI SOC
           analysis in one operational command surface.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">

@@ -61,6 +61,33 @@ async function executeRecaptcha(action: string): Promise<string> {
   });
 }
 
+interface GeolocationCoords {
+  latitude: number;
+  longitude: number;
+}
+
+function getBrowserLocation(): Promise<GeolocationCoords | null> {
+  return new Promise((resolve) => {
+    if (typeof window === "undefined" || !navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude
+        });
+      },
+      (error) => {
+        console.warn("Geolocation access denied or failed:", error);
+        resolve(null);
+      },
+      { timeout: 3000 }
+    );
+  });
+}
+
 export function LoginForm() {
   const router = useRouter();
   const firstFocusAt = useRef<number | null>(null);
@@ -120,6 +147,8 @@ export function LoginForm() {
     const form = new FormData(formElement);
     const focusToSubmitMs = firstFocusAt.current ? Math.round(performance.now() - firstFocusAt.current) : 0;
 
+    const locationCoords = await getBrowserLocation();
+
     const response = await fetch("/api/security/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -127,7 +156,9 @@ export function LoginForm() {
         email: String(form.get("email") ?? ""),
         password: String(form.get("password") ?? ""),
         focusToSubmitMs,
-        captchaToken
+        captchaToken,
+        latitude: locationCoords?.latitude,
+        longitude: locationCoords?.longitude
       })
     });
 
