@@ -76,6 +76,23 @@ export async function POST(request: NextRequest) {
   const worldIdAppId = process.env.WORLD_ID_APP_ID as `app_${string}` | undefined;
   const worldIdAction = process.env.WORLD_ID_ACTION || "sentinel_register";
 
+  // World ID is REQUIRED for new account registration. Existing accounts log in
+  // through a separate flow that never touches World ID, so they are unaffected.
+  if (worldIdAppId && !body.worldIdProof) {
+    await recordSecurityEvent({
+      type: "WORLD_ID_REQUIRED",
+      severity: "MEDIUM",
+      details: `Registration blocked: World ID proof missing for ${body.email ?? "unknown"}.`,
+      ip,
+      metadata: { email: body.email, endpoint: "register" },
+      runAi: false
+    });
+    return NextResponse.json(
+      { error: "World ID verification is required to create a new account." },
+      { status: 400 }
+    );
+  }
+
   if (body.worldIdProof && worldIdAppId) {
     try {
       const { verifyCloudProof } = await import("@worldcoin/idkit");

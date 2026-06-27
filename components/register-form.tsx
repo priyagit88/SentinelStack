@@ -70,6 +70,7 @@ export function RegisterForm() {
   const [isPending, setPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const captchaRequired = Boolean(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY);
+  const worldIdRequired = Boolean(process.env.NEXT_PUBLIC_WORLD_ID_APP_ID);
   const [worldIdProof, setWorldIdProof] = useState<ISuccessResult | null>(null);
 
   async function signInWithProvider(provider: "google" | "github") {
@@ -110,6 +111,12 @@ export function RegisterForm() {
         body: JSON.stringify(payload)
       });
       router.push("/login?registered=1");
+      return;
+    }
+
+    if (worldIdRequired && !worldIdProof) {
+      setError("Please verify you're human with World ID before registering.");
+      setPending(false);
       return;
     }
 
@@ -184,7 +191,9 @@ export function RegisterForm() {
       {/* World ID Verification */}
       {process.env.NEXT_PUBLIC_WORLD_ID_APP_ID && (
         <div className="flex flex-col items-center gap-2 py-2">
-          <p className="text-sm text-slate-400">Prove you&apos;re human with World ID</p>
+          <p className="text-sm text-slate-400">
+            Prove you&apos;re human with World ID <span className="text-cyan-300">(required)</span>
+          </p>
           <WorldIDVerify
             onVerified={(proof) => setWorldIdProof(proof)}
             buttonText="Verify you're human"
